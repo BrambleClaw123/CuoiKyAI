@@ -1,586 +1,560 @@
-import os
-import pygame
-from core.level_loader import load_level
-from core.constants import *
-from ui.game_window import draw_board
-from ui.menu_window import run_menu
+import customtkinter as ctk
+import tkinter as tk
+from core.board import Board
+from core.vehicle import Vehicle
+from algorithms.bfs_solver import BFSSolver
+# Giả sử bạn import thêm các solver mới ở đây:
+# from algorithms.dfs_solver import DFSSolver
+# from algorithms.ids_solver import IDSSolver
 
-# Import AI
-from algorithms.uninformed.bfs import BFS
+# ═══════════════════════════════════════════════════
+# PALETTE MÀU CYBERPUNK THEO HTML CỦA BẠN
+# ═══════════════════════════════════════════════════
+BG_COLOR = "#0A0C10"
+PANEL_COLOR = "#111318"
+PANEL2_COLOR = "#161A22"
+BORDER_COLOR = "#2A2F3D"
+ACCENT_CYAN = "#00E5FF"
+ACCENT_ORANGE = "#FF6B35"
+GREEN_NEON = "#22C55E"
+RED_NEON = "#EF4444"
+TEXT_MAIN = "#E2E8F0"
+TEXT_MUTED = "#94A3B8"
+CELL_SIZE = 76  
 
-# Hàm Mapping Thuật toán động
-def get_solver(algo_name):
-    if algo_name == "BFS":
-        return BFS()
-    # Sau này thêm DFS: if algo_name == "DFS": return DFS()
-    return BFS() # Mặc định trả về BFS nếu chưa làm
+CAR_COLORS = {
+    'X': {"bg": "#7F1D1D", "border": "#EF4444", "text": "#FCA5A5"}, 
+    'A': {"bg": "#1E293B", "border": "#3B82F6", "text": "#93C5FD"},
+    'B': {"bg": "#3B0764", "border": "#A855F7", "text": "#D8B4FE"},
+    'C': {"bg": "#042F2E", "border": "#14B8A6", "text": "#5EEAD4"},
+    'D': {"bg": "#451A03", "border": "#F59E0B", "text": "#FCD34D"},
+    'E': {"bg": "#500732", "border": "#EC4899", "text": "#F9A8D4"},
+    'F': {"bg": "#022C22", "border": "#10B981", "text": "#6EE7B7"},
+    'G': {"bg": "#431407", "border": "#F97316", "text": "#FDBA74"},
+    'H': {"bg": "#1A1B4B", "border": "#6366F1", "text": "#A5B4FC"},
+    'I': {"bg": "#422006", "border": "#EAB308", "text": "#FDE047"}
+}
 
-def get_move_description(state1, state2):
-    """So sánh 2 state để rút ra câu mô tả bước đi"""
-    for v1, v2 in zip(state1.vehicles, state2.vehicles):
-        if v1.x != v2.x or v1.y != v2.y:
-            if v1.orientation == 'H':
-                direction = "sang phải" if v2.x > v1.x else "sang trái"
+# ═══════════════════════════════════════════════════
+# CẤU HÌNH DỮ LIỆU CÁC MÀN CHƠI (LEVELS, BRICKS & ALGOS)
+# ═══════════════════════════════════════════════════
+LEVEL_DATA = {
+    1: {
+        "name": "Gridlock Alpha",
+        "bricks": [(4, 2), (4, 3)],
+        "vehicles": [
+            Vehicle('X', 2, 0, 2, 'H', is_target=True),
+            Vehicle('A', 0, 0, 2, 'H'), Vehicle('B', 0, 2, 3, 'V'), Vehicle('C', 0, 3, 2, 'H'),
+            Vehicle('D', 1, 0, 2, 'H'), Vehicle('E', 1, 3, 2, 'V'),
+            Vehicle('F', 3, 2, 2, 'H'), Vehicle('G', 3, 4, 3, 'V'),
+            Vehicle('H', 4, 0, 2, 'V'), Vehicle('I', 5, 1, 2, 'H')
+        ],
+        # Định nghĩa các thuật toán khả dụng riêng cho Màn 1
+        "algorithms": {
+            "BFS": {"label": "Breadth-First Search", "desc": "Tìm đường ngắn nhất, duyệt từng lớp.\nĐảm bảo tối ưu, tốn RAM.", "solver": BFSSolver()},
+            "DFS": {"label": "Depth-First Search", "desc": "Đi sâu vào một nhánh trước.\nNhanh nhưng không đảm bảo tối ưu.", "solver": BFSSolver()}, # Đổi sang DFSSolver() khi có file
+            "IDS": {"label": "Iterative Deepening", "desc": "Kết hợp ưu điểm của BFS và DFS.\nTối ưu và tiết kiệm bộ nhớ.", "solver": BFSSolver()}  # Đổi sang IDSSolver() khi có file
+        }
+    },
+    2: {
+        "name": "Beta Block",
+        "bricks": [(0, 5), (5, 0)],
+        "vehicles": [
+            Vehicle('X', 2, 1, 2, 'H', is_target=True),
+            Vehicle('A', 0, 0, 3, 'H'), Vehicle('B', 1, 4, 2, 'V'), Vehicle('C', 4, 2, 2, 'H')
+        ],
+        # Định nghĩa các thuật toán khả dụng riêng cho Màn 2
+        "algorithms": {
+            "GSA": {"label": "Greedy Search Algorithm", "desc": "Duyệt theo hàm heuristic đánh giá.\nTập trung hướng đích, nhanh kịch bản.", "solver": BFSSolver()}, # Đổi sang GSASolver() mốt học
+            "A*":  {"label": "A* Algorithm", "desc": "Kết hợp chi phí thực tế và heuristic.\nTìm đường ngắn nhất tối ưu tuyệt đối.", "solver": BFSSolver()}, # Đổi sang AStarSolver() mốt học
+            "IDA*": {"label": "Iterative Deepening A*", "desc": "Phiên bản IDA* tiết kiệm bộ nhớ.\nDùng giới hạn chi phí tăng dần.", "solver": BFSSolver()}  # Đổi sang IDAStarSolver() mốt học
+        }
+    }
+}
+
+class RushHourAIApp(ctk.CTk):
+    def __init__(self):
+        super().__init__()
+
+        self.title("Rush Hour AI")
+        self.geometry("1150x680")
+        self.configure(fg_color=BG_COLOR)
+
+        # Trạng thái Game ban đầu
+        self.current_level_id = 1
+        self.initial_board = self.load_level(1)
+        self.current_board = self.load_level(1)
+        self.move_count = 0
+        
+        # Biến quản lý thuật toán hiện tại
+        self.current_algo_key = "BFS"
+        self.algo_buttons = {}  # Lưu danh sách các widget nút thuật toán bên trái
+
+        # Biến chuột kéo thả
+        self.selected_vehicle_name = None
+        self.drag_start_x = 0
+        self.drag_start_y = 0
+        self.orig_v_col = 0
+        self.orig_v_row = 0
+        self.ghost_cell = None
+
+        self.setup_ui()
+        self.switch_level(1) # Chạy nạp màn 1 để khởi tạo chuẩn xác đồ họa
+
+    def load_level(self, level_id):
+        self.current_level_id = level_id
+        data = LEVEL_DATA[level_id]
+        cloned_vehicles = [v.clone() for v in data["vehicles"]]
+        return Board(cloned_vehicles, data["bricks"])
+
+    def setup_ui(self):
+        # ═══════════════════════════════════════════════════
+        # HEADER BAR
+        # ═══════════════════════════════════════════════════
+        header = ctk.CTkFrame(self, height=60, fg_color=PANEL_COLOR, corner_radius=0, border_color=BORDER_COLOR, border_width=1)
+        header.pack(fill="x", side="top")
+
+        logo_label = ctk.CTkLabel(header, text="RUSHHOUR.AI", font=("Space Mono", 20, "bold"), text_color=ACCENT_CYAN)
+        logo_label.pack(side="left", padx=28, pady=14)
+
+        self.pill_algo = ctk.CTkLabel(header, text="ALGO: BFS", font=("Space Mono", 11), fg_color=BG_COLOR, text_color=ACCENT_CYAN, corner_radius=20, width=110, height=25)
+        self.pill_algo.pack(side="right", padx=(0, 28), pady=14)
+
+        self.pill_moves = ctk.CTkLabel(header, text="MOVES: 0", font=("Space Mono", 11), fg_color=BG_COLOR, text_color=TEXT_MAIN, corner_radius=20, width=90, height=25)
+        self.pill_moves.pack(side="right", padx=15, pady=14)
+
+        self.pill_level = ctk.CTkLabel(header, text="LEVEL: 1", font=("Space Mono", 11), fg_color=BG_COLOR, text_color=TEXT_MUTED, corner_radius=20, width=90, height=25)
+        self.pill_level.pack(side="right", padx=0, pady=14)
+
+        main_layout = ctk.CTkFrame(self, fg_color="transparent")
+        main_layout.pack(fill="both", expand=True, side="top")
+
+        # ═══════════════════════════════════════════════════
+        # LEFT SIDEBAR
+        # ═══════════════════════════════════════════════════
+        sidebar_left = ctk.CTkFrame(main_layout, width=220, fg_color=PANEL_COLOR, corner_radius=0, border_color=BORDER_COLOR, border_width=1)
+        sidebar_left.pack(side="left", fill="y")
+        sidebar_left.pack_propagate(False)
+
+        lbl_sec_lvl = ctk.CTkLabel(sidebar_left, text="--- LEVELS ---", font=("Space Mono", 10, "bold"), text_color=BORDER_COLOR, anchor="w")
+        lbl_sec_lvl.pack(fill="x", padx=16, pady=(20, 5))
+
+        self.btn_lvl1 = ctk.CTkButton(sidebar_left, text="Gridlock Alpha   [1]", font=("Rajdhani", 14, "bold"), fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN, border_width=1, hover_color="#0B2531", anchor="w", command=lambda: self.switch_level(1))
+        self.btn_lvl1.pack(fill="x", padx=16, pady=4)
+
+        self.btn_lvl2 = ctk.CTkButton(sidebar_left, text="Beta Block       [2]", font=("Rajdhani", 14, "bold"), fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR, border_width=1, hover_color="#1F2937", anchor="w", command=lambda: self.switch_level(2))
+        self.btn_lvl2.pack(fill="x", padx=16, pady=4)
+
+        for dummy_lvl in ["Gamma Trap   [3]", "Delta Hard   [4]"]:
+            btn_lock = ctk.CTkButton(sidebar_left, text=dummy_lvl, font=("Rajdhani", 14, "bold"), fg_color="transparent", text_color="#475569", state="disabled", anchor="w")
+            btn_lock.pack(fill="x", padx=16, pady=4)
+
+        lbl_sec_alg = ctk.CTkLabel(sidebar_left, text="--- ALGORITHM ---", font=("Space Mono", 10, "bold"), text_color=BORDER_COLOR, anchor="w")
+        lbl_sec_alg.pack(fill="x", padx=16, pady=(25, 5))
+
+        # Khung chứa danh sách nút thuật toán di động (Sẽ tự động xóa/vẽ lại khi đổi màn)
+        self.algo_container = ctk.CTkFrame(sidebar_left, fg_color="transparent")
+        self.algo_container.pack(fill="x", padx=16, pady=5)
+
+        # Khung chứa Mô tả thuật toán góc dưới bên trái
+        desc_frame = ctk.CTkFrame(sidebar_left, fg_color="transparent")
+        desc_frame.pack(fill="x", padx=16, side="bottom", pady=30)
+        self.lbl_desc_t = ctk.CTkLabel(desc_frame, text="Agent Solver", font=("Rajdhani", 13, "bold"), text_color=ACCENT_CYAN, anchor="w")
+        self.lbl_desc_t.pack(fill="x")
+        self.lbl_desc_b = ctk.CTkLabel(desc_frame, text="", font=("Rajdhani", 12), text_color=TEXT_MUTED, anchor="w", justify="left")
+        self.lbl_desc_b.pack(fill="x", pady=2)
+
+        # ═══════════════════════════════════════════════════
+        # RIGHT PANEL (LOG & BUTTONS)
+        # ═══════════════════════════════════════════════════
+        sidebar_right = ctk.CTkFrame(main_layout, width=260, fg_color=PANEL_COLOR, corner_radius=0, border_color=BORDER_COLOR, border_width=1)
+        sidebar_right.pack(side="right", fill="y")
+        sidebar_right.pack_propagate(False)
+
+        ai_card = ctk.CTkFrame(sidebar_right, fg_color=PANEL2_COLOR, border_color=BORDER_COLOR, border_width=1, corner_radius=10)
+        ai_card.pack(fill="x", padx=16, pady=20)
+
+        lbl_card_t = ctk.CTkLabel(ai_card, text="AI AGENT", font=("Space Mono", 11), text_color=TEXT_MUTED)
+        lbl_card_t.pack(anchor="w", padx=14, pady=(10, 5))
+
+        self.btn_ai = ctk.CTkButton(ai_card, text="▶ Gọi AI Giải", font=("Rajdhani", 15, "bold"), fg_color="#0B212B", text_color=ACCENT_CYAN, border_color="#0B3C4F", border_width=1, hover_color="#0C3848", command=self.run_ai)
+        self.btn_ai.pack(fill="x", padx=14, pady=6)
+
+        btn_reset = ctk.CTkButton(ai_card, text="↺ Reset Level", font=("Rajdhani", 14), fg_color="transparent", text_color=TEXT_MUTED, border_color=BORDER_COLOR, border_width=1, hover_color="#1F2937", command=self.reset_game)
+        btn_reset.pack(fill="x", padx=14, pady=(4, 14))
+
+        log_card = ctk.CTkFrame(sidebar_right, fg_color=PANEL2_COLOR, border_color=BORDER_COLOR, border_width=1, corner_radius=10)
+        log_card.pack(fill="both", expand=True, padx=16, pady=(0, 20))
+
+        lbl_log_t = ctk.CTkLabel(log_card, text="MOVE LOG", font=("Space Mono", 11), text_color=TEXT_MUTED)
+        lbl_log_t.pack(anchor="w", padx=14, pady=(10, 5))
+
+        self.log_box = tk.Text(log_card, bg=BG_COLOR, fg=TEXT_MUTED, insertbackground=TEXT_MAIN, bd=0, highlightthickness=0, font=("Space Mono", 9), wrap="word")
+        self.log_box.pack(fill="both", expand=True, padx=14, pady=(0, 14))
+        
+        self.log_box.tag_config("info", foreground="#A78BFA")
+        self.log_box.tag_config("current", foreground=ACCENT_CYAN)
+        self.log_box.tag_config("success", foreground=GREEN_NEON)
+
+        # ═══════════════════════════════════════════════════
+        # CENTER GAME AREA
+        # ═══════════════════════════════════════════════════
+        center_area = ctk.CTkFrame(main_layout, fg_color="transparent")
+        center_area.pack(side="left", fill="both", expand=True)
+
+        board_outer = ctk.CTkFrame(center_area, fg_color=PANEL2_COLOR, border_color=BORDER_COLOR, border_width=2, corner_radius=12)
+        board_outer.place(relx=0.5, rely=0.45, anchor="center")
+
+        self.canvas = tk.Canvas(board_outer, width=CELL_SIZE*6, height=CELL_SIZE*6, bg="#0D1117", bd=0, highlightthickness=0)
+        self.canvas.pack(padx=10, pady=10)
+
+        self.lbl_hint = ctk.CTkLabel(center_area, text="Kéo xe để di chuyển • Nhấn AI để giải tự động", font=("Rajdhani", 13, "normal"), text_color=TEXT_MUTED)
+        self.lbl_hint.place(relx=0.5, rely=0.85, anchor="center")
+
+        # ═══════════════════════════════════════════════════
+        # STATUS BAR DƯỚI ĐÁY
+        # ═══════════════════════════════════════════════════
+        status_bar = ctk.CTkFrame(self, height=30, fg_color=PANEL_COLOR, corner_radius=0, border_color=BORDER_COLOR, border_width=1)
+        status_bar.pack(fill="x", side="bottom")
+
+        self.status_dot = ctk.CTkLabel(status_bar, text="●", font=("Space Mono", 14), text_color=GREEN_NEON)
+        self.status_dot.pack(side="left", padx=(28, 5))
+
+        self.status_text = ctk.CTkLabel(status_bar, text="Sẵn sàng — Kéo xe hoặc gọi AI", font=("Space Mono", 11), text_color="#475569")
+        self.status_text.pack(side="left", padx=0)
+
+    # ═══════════════════════════════════════════════════
+    # DYNAMIC ALGORITHM GENERATOR (TỰ ĐỘNG THAY ĐỔI OPTION)
+    # ═══════════════════════════════════════════════════
+    def update_algo_menu(self):
+        """Xóa toàn bộ các nút thuật toán cũ và sinh lại nút mới cho Level hiện hành."""
+        for btn in self.algo_buttons.values():
+            btn.destroy()
+        self.algo_buttons.clear()
+
+        # Lấy danh sách thuật toán được định nghĩa trong LEVEL_DATA
+        algos = LEVEL_DATA[self.current_level_id]["algorithms"]
+        
+        # Thiết lập key thuật toán mặc định khi vừa đổi màn chơi (Bốc key đầu tiên)
+        self.current_algo_key = list(algos.keys())[0]
+
+        # Vòng lặp tự động tạo nút bấm đồ họa
+        for key, info in algos.items():
+            btn = ctk.CTkButton(
+                self.algo_container, 
+                text=f"• {info['label']}" if key == self.current_algo_key else f"  {info['label']}", 
+                font=("Rajdhani", 13, "bold"),
+                fg_color="transparent", 
+                text_color=ACCENT_CYAN if key == self.current_algo_key else TEXT_MUTED, 
+                anchor="w", 
+                hover=False,
+                command=lambda k=key: self.select_algorithm(k) # Gắn sự kiện click
+            )
+            btn.pack(fill="x", pady=2)
+            self.algo_buttons[key] = btn
+
+        # Gọi cập nhật text hiển thị ở các góc
+        self.refresh_algo_display_texts()
+
+    def select_algorithm(self, algo_key):
+        """Hành động khi người dùng nhấp chọn thuật toán mới trên thanh bên."""
+        self.current_algo_key = algo_key
+        algos = LEVEL_DATA[self.current_level_id]["algorithms"]
+
+        # Duyệt qua các nút để reset màu chữ và dấu chấm chỉ định (•)
+        for key, btn in self.algo_buttons.items():
+            if key == algo_key:
+                btn.configure(text=f"• {algos[key]['label']}", text_color=ACCENT_CYAN)
             else:
-                direction = "xuống dưới" if v2.y > v1.y else "lên trên"
-            return f"Xe {v1.id} -> {direction}"
-    return "Không rõ"
+                btn.configure(text=f"  {algos[key]['label']}", text_color=TEXT_MUTED)
 
-def run_game(screen, clock, level_config):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    filename = f"level_{level_config['level']:02d}.json"
-    file_path = os.path.join(base_dir, "levels", filename)
-    
-    if not os.path.exists(file_path):
-        file_path = os.path.join(base_dir, "levels", "level_01.json")
+        self.refresh_algo_display_texts()
 
-    initial_state = load_level(file_path)
-    solver = get_solver(level_config['algo'])
+    def refresh_algo_display_texts(self):
+        """Cập nhật đồng bộ thông tin thuật toán lên Header Pill và Góc Trái Dưới."""
+        algos = LEVEL_DATA[self.current_level_id]["algorithms"]
+        current_info = algos[self.current_algo_key]
 
-    font_sm = pygame.font.SysFont("segoe ui", 18)
-    font_md = pygame.font.SysFont("segoe ui", 22)
-    font_lg = pygame.font.SysFont("segoe ui", 26, bold=True)
+        # 1. Cập nhật Pill góc phải trên cùng Header
+        self.pill_algo.configure(text=f"ALGO: {self.current_algo_key}")
 
-    game_status = "WAITING" 
-    solution_path = []
-    move_history_texts = []
-    
-    current_step = 0
-    step_delay = 500
-    last_update_time = 0
+        # 2. Cập nhật Panel mô tả góc trái dưới cùng
+        self.lbl_desc_t.configure(text=f"{self.current_algo_key} Agent")
+        self.lbl_desc_b.configure(text=current_info["desc"])
 
-    # --- BIẾN QUẢN LÝ CUỘN LOG ---
-    log_scroll_offset = 0
-    max_visible_lines = 14
-
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            
-            # 1. Xử lý cuộn bằng con lăn chuột
-            if event.type == pygame.MOUSEWHEEL:
-                if game_status in ["ANIMATING", "FINISHED"]:
-                    max_offset = max(0, current_step - max_visible_lines)
-                    # event.y dương khi cuộn lên, âm khi cuộn xuống
-                    log_scroll_offset -= event.y 
-                    log_scroll_offset = max(0, min(log_scroll_offset, max_offset))
-
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return 
-                if event.key == pygame.K_SPACE and game_status == "WAITING":
-                    game_status = "SOLVING"
-                
-                # 2. Xử lý cuộn bằng phím mũi tên Lên/Xuống
-                if game_status in ["ANIMATING", "FINISHED"]:
-                    if event.key == pygame.K_UP:
-                        log_scroll_offset = max(0, log_scroll_offset - 1)
-                    elif event.key == pygame.K_DOWN:
-                        max_offset = max(0, current_step - max_visible_lines)
-                        log_scroll_offset = min(max_offset, log_scroll_offset + 1)
-
-        screen.fill(APP_BG)
-
-        # --- PANEL TRÁI ---
-        panel_left = pygame.Rect(20, 20, 540, 620)
-        pygame.draw.rect(screen, PANEL_BG, panel_left, border_radius=12)
-        pygame.draw.rect(screen, BORDER_COLOR, panel_left, width=2, border_radius=12)
+    # ═══════════════════════════════════════════════════
+    # LEVEL SWITCHER VÀ ĐỒ HỌA LƯỚI
+    # ═══════════════════════════════════════════════════
+    def switch_level(self, level_id):
+        self.initial_board = self.load_level(level_id)
+        self.current_board = self.load_level(level_id)
+        self.move_count = 0
         
-        board_offset_x = panel_left.x + (panel_left.width - BOARD_SIZE) // 2
-        board_offset_y = panel_left.y + (panel_left.height - BOARD_SIZE) // 2
+        self.pill_level.configure(text=f"LEVEL: {level_id}")
+        self.pill_moves.configure(text="MOVES: 0")
+        
+        # Đổi trạng thái bật/tắt đèn của nút chọn Level bên trái
+        if level_id == 1:
+            self.btn_lvl1.configure(fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN)
+            self.btn_lvl2.configure(fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR)
+        elif level_id == 2:
+            self.btn_lvl1.configure(fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR)
+            self.btn_lvl2.configure(fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN)
 
-        state_to_draw = initial_state if game_status in ["WAITING", "SOLVING", "NO_SOLUTION"] else solution_path[current_step]
-        draw_board(screen, state_to_draw, board_offset_x, board_offset_y)
+        # TỰ ĐỘNG THAY ĐỔI OPTION THUẬT TOÁN THEO LEVEL
+        self.update_algo_menu()
 
-        # --- PANEL PHẢI ---
-        panel_right = pygame.Rect(580, 20, 350, 620)
-        pygame.draw.rect(screen, PANEL_BG, panel_right, border_radius=12)
-        pygame.draw.rect(screen, BORDER_COLOR, panel_right, width=2, border_radius=12)
+        self.draw_board()
+        self.log_box.delete("1.0", "end")
+        self.add_log("Log cleared.", "")
+        self.add_log(f"Level {level_id}: {LEVEL_DATA[level_id]['name']} đã sẵn sàng.", "info")
+        self.set_status("ready")
 
-        px, py = panel_right.x + 20, panel_right.y + 20
-        title_surf = font_lg.render(f"Level {level_config['level']}", True, LIGHT_TEXT)
-        algo_surf = font_md.render(f"Thuật toán: {level_config['algo']}", True, (100, 200, 255))
-        screen.blit(title_surf, (px, py))
-        screen.blit(algo_surf, (px, py + 35))
-        pygame.draw.line(screen, BORDER_COLOR, (px, py + 70), (panel_right.right - 20, py + 70), 2)
+    def draw_board(self):
+        self.canvas.delete("all")
+        for i in range(1, 6):
+            pos = i * CELL_SIZE
+            self.canvas.create_line(pos, 0, pos, CELL_SIZE*6, fill="#21262D", width=1)
+            self.canvas.create_line(0, pos, CELL_SIZE*6, pos, fill="#21262D", width=1)
 
-        if game_status in ["ANIMATING", "FINISHED"]:
-            # Hiển thị thêm hướng dẫn cuộn
-            step_title = font_md.render(f"Các bước di chuyển: ", True, LIGHT_TEXT)
-            screen.blit(step_title, (px, py + 85))
-            
-            # Render LOG dựa trên thanh cuộn
-            start_idx = log_scroll_offset
-            end_idx = min(current_step, start_idx + max_visible_lines)
-            
-            for i in range(start_idx, end_idx):
-                color = (255, 215, 0) if i == current_step - 1 else (150, 150, 150)
-                txt_surf = font_sm.render(f"Bước {i+1}: {move_history_texts[i]}", True, color)
-                # Tính toán lại vị trí Y dựa vào start_idx thay vì index cũ
-                screen.blit(txt_surf, (px, py + 120 + (i - start_idx) * 25))
+        exit_y1 = 2 * CELL_SIZE + 2
+        exit_y2 = 3 * CELL_SIZE - 2
+        self.canvas.create_rectangle(CELL_SIZE*6 - 6, exit_y1, CELL_SIZE*6, exit_y2, fill=RED_NEON, outline="")
 
-            if game_status == "FINISHED":
-                pygame.draw.rect(screen, (30, 80, 30), (px, panel_right.bottom - 70, panel_right.width - 40, 50), border_radius=8)
-                summary_txt = font_md.render(f"Đã giải quyết trong {len(solution_path)-1} bước!", True, WHITE)
-                screen.blit(summary_txt, (px + 10, panel_right.bottom - 58))
+        pad_brick = 5
+        for (r, c) in self.current_board.bricks:
+            bx1 = c * CELL_SIZE + pad_brick
+            by1 = r * CELL_SIZE + pad_brick
+            bx2 = (c + 1) * CELL_SIZE - pad_brick
+            by2 = (r + 1) * CELL_SIZE - pad_brick
+            self.canvas.create_rectangle(bx1, by1, bx2, by2, fill="#1F2226", outline="#2A2F3D", width=2)
+            offset = 12
+            screws = [
+                (bx1 + offset, by1 + offset), (bx2 - offset, by1 + offset),
+                (bx1 + offset, by2 - offset), (bx2 - offset, by2 - offset)
+            ]
+            for (sx, sy) in screws:
+                self.canvas.create_oval(sx - 3, sy - 3, sx + 3, sy + 3, fill="#8A94A2", outline="")
 
-        # --- STATUS BAR BÊN DƯỚI ---
-        status_y = WINDOW_HEIGHT - 50
-        if game_status == "WAITING":
-            status_text = font_lg.render("Nhấn [SPACE] để AI bắt đầu tính toán", True, (0, 200, 100))
-        elif game_status == "SOLVING":
-            status_text = font_lg.render("AI đang duyệt qua các trạng thái... Vui lòng chờ!", True, (255, 150, 0))
-            screen.blit(status_text, (40, status_y))
-            pygame.display.flip()
-            
-            solution_path = solver.solve(initial_state)
-            if not solution_path:
-                game_status = "NO_SOLUTION"
+        pad = 5
+        for name, v in self.current_board.vehicles.items():
+            color_cfg = CAR_COLORS.get(name, {"bg": "#1F2937", "border": "#4B5563", "text": "#FFFFFF"})
+            x1 = v.col * CELL_SIZE + pad
+            y1 = v.row * CELL_SIZE + pad
+            if v.orientation == 'H':
+                x2 = (v.col + v.size) * CELL_SIZE - pad
+                y2 = (v.row + 1) * CELL_SIZE - pad
             else:
-                game_status = "ANIMATING"
-                last_update_time = pygame.time.get_ticks()
-                move_history_texts = [get_move_description(solution_path[i], solution_path[i+1]) for i in range(len(solution_path)-1)]
-                status_text = font_lg.render("Đang mô phỏng kết quả...", True, (100, 150, 255))
-                
-        elif game_status == "ANIMATING":
-            status_text = font_lg.render("Đang mô phỏng kết quả...", True, (100, 150, 255))
-        elif game_status == "FINISHED":
-            status_text = font_lg.render("Hoàn tất! Nhấn [ESC] để quay lại Menu.", True, (0, 200, 100))
-        elif game_status == "NO_SOLUTION":
-            status_text = font_lg.render("Lỗi: Bản đồ bị khóa chết (Deadlock)!", True, (255, 50, 50))
+                x2 = (v.col + 1) * CELL_SIZE - pad
+                y2 = (v.row + v.size) * CELL_SIZE - pad
 
-        if game_status != "SOLVING":
-            screen.blit(status_text, (40, status_y))
+            rect_id = self.canvas.create_rectangle(x1, y1, x2, y2, fill=color_cfg["bg"], outline=color_cfg["border"], width=2, tags=(name, "vehicle"))
+            text_id = self.canvas.create_text((x1+x2)/2, (y1+y2)/2, text=name, fill=color_cfg["text"], font=("Space Mono", 16, "bold"), tags=(name, "text"))
 
-        # --- LOGIC ANIMATION ---
-        if game_status == "ANIMATING":
-            current_time = pygame.time.get_ticks()
-            if current_time - last_update_time > step_delay:
-                if current_step < len(solution_path) - 1:
-                    current_step += 1
-                    # Tự động cuộn xuống dưới cùng khi xe đang chạy
-                    log_scroll_offset = max(0, current_step - max_visible_lines)
-                else:
-                    game_status = "FINISHED"
-                last_update_time = current_time
+            for item_id in (rect_id, text_id):
+                self.canvas.tag_bind(item_id, "<Button-1>", lambda e, n=name: self.on_vehicle_click(e, n))
+                self.canvas.tag_bind(item_id, "<B1-Motion>", self.on_vehicle_drag)
+                self.canvas.tag_bind(item_id, "<ButtonRelease-1>", self.on_vehicle_release)
 
-        pygame.display.flip()
-        clock.tick(FPS)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    filename = f"level_{level_config['level']:02d}.json"
-    file_path = os.path.join(base_dir, "levels", filename)
-    
-    if not os.path.exists(file_path):
-        file_path = os.path.join(base_dir, "levels", "level_01.json")
+    # ═══════════════════════════════════════════════════
+    # CHUỘT KÉO THẢ REALTIME
+    # ═══════════════════════════════════════════════════
+    def on_vehicle_click(self, event, name):
+        self.selected_vehicle_name = name
+        v = self.current_board.vehicles[name]
+        self.drag_start_x = event.x
+        self.drag_start_y = event.y
+        self.orig_v_col = v.col
+        self.orig_v_row = v.row
+        self.ghost_cell = (v.row, v.col)
+        self.show_move_hints(v)
 
-    initial_state = load_level(file_path)
-    solver = get_solver(level_config['algo'])
+    def on_vehicle_drag(self, event):
+        if not self.selected_vehicle_name: return
+        v = self.current_board.vehicles[self.selected_vehicle_name]
+        dx = event.x - self.drag_start_x
+        dy = event.y - self.drag_start_y
 
-    font_sm = pygame.font.SysFont("segoe ui", 18)
-    font_md = pygame.font.SysFont("segoe ui", 22)
-    font_lg = pygame.font.SysFont("segoe ui", 26, bold=True)
+        if v.orientation == 'H':
+            self.canvas.move(self.selected_vehicle_name, dx, 0)
+            self.drag_start_x = event.x
+            coords = self.canvas.coords(self.selected_vehicle_name)
+            if coords:
+                current_pixel_x = coords[0] - 5
+                estimated_col = round(current_pixel_x / CELL_SIZE)
+                estimated_col = max(0, min(estimated_col, 6 - v.size))
+                self.ghost_cell = (v.row, estimated_col)
+        else:
+            self.canvas.move(self.selected_vehicle_name, 0, dy)
+            self.drag_start_y = event.y
+            coords = self.canvas.coords(self.selected_vehicle_name)
+            if coords:
+                current_pixel_y = coords[1] - 5
+                estimated_row = round(current_pixel_y / CELL_SIZE)
+                estimated_row = max(0, min(estimated_row, 6 - v.size))
+                self.ghost_cell = (estimated_row, v.col)
+        self.update_ghost_box(v)
 
-    game_status = "WAITING" 
-    solution_path = []
-    move_history_texts = []
-    
-    current_step = 0
-    step_delay = 500
-    last_update_time = 0
+    def update_ghost_box(self, v):
+        self.canvas.delete("ghost")
+        g_row, g_col = self.ghost_cell
+        gx1 = g_col * CELL_SIZE + 2
+        gy1 = g_row * CELL_SIZE + 2
+        gx2 = (g_col + (v.size if v.orientation == 'H' else 1)) * CELL_SIZE - 2
+        gy2 = (g_row + (1 if v.orientation == 'H' else v.size)) * CELL_SIZE - 2
+        self.canvas.create_rectangle(gx1, gy1, gx2, gy2, outline=ACCENT_CYAN, width=1.5, dash=(4, 4), tags="ghost")
 
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return 
-                if event.key == pygame.K_SPACE and game_status == "WAITING":
-                    game_status = "SOLVING"
+    def on_vehicle_release(self, event):
+        if not self.selected_vehicle_name: return
+        self.canvas.delete("ghost")
+        self.canvas.delete("hint")
+        v = self.current_board.vehicles[self.selected_vehicle_name]
+        g_row, g_col = self.ghost_cell
+        steps = (g_col - self.orig_v_col) if v.orientation == 'H' else (g_row - self.orig_v_row)
 
-        # --- NỀN TOÀN MÀN HÌNH ---
-        screen.fill(APP_BG)
+        if steps != 0:
+            sign = 1 if steps > 0 else -1
+            valid_total_steps = 0
+            temp_board = self.current_board
+            for _ in range(abs(steps)):
+                if (self.selected_vehicle_name, sign) in temp_board.get_valid_moves():
+                    temp_board = temp_board.move_vehicle(self.selected_vehicle_name, sign)
+                    valid_total_steps += sign
+                else: break
+            if valid_total_steps != 0:
+                self.current_board = self.current_board.move_vehicle(self.selected_vehicle_name, valid_total_steps)
+                self.move_count += 1
+                self.pill_moves.configure(text=f"MOVES: {self.move_count}")
+                dir_symbol = "→ phải" if v.orientation == 'H' and valid_total_steps > 0 else "← trái" if v.orientation == 'H' else "↓ xuống" if valid_total_steps > 0 else "↑ lên"
+                self.add_log(f"Xe {self.selected_vehicle_name} {dir_symbol}", "current")
 
-        # --- KHỞI TẠO 2 PANEL ---
-        # Panel Trái: Kích thước 540x620, chứa bàn cờ
-        panel_left = pygame.Rect(20, 20, 540, 620)
-        # Panel Phải: Kích thước 350x620, chứa thông tin và Log
-        panel_right = pygame.Rect(580, 20, 350, 620)
+        self.draw_board()
+        self.check_win()
+        self.selected_vehicle_name = None
 
-        # Vẽ nền và viền cho 2 Panel
-        pygame.draw.rect(screen, PANEL_BG, panel_left, border_radius=12)
-        pygame.draw.rect(screen, BORDER_COLOR, panel_left, width=2, border_radius=12)
+    def show_move_hints(self, v):
+        self.canvas.delete("hint")
+        board_cells = self.current_board.get_occupied_cells()
+        if v.orientation == 'H':
+            for c in range(v.col - 1, -1, -1):
+                if (v.row, c) in board_cells: break
+                self.draw_hint_tile(c, v.row)
+            for c in range(v.col + v.size, 6):
+                if (v.row, c) in board_cells: break
+                self.draw_hint_tile(c, v.row)
+        else:
+            for r in range(v.row - 1, -1, -1):
+                if (r, v.col) in board_cells: break
+                self.draw_hint_tile(v.col, r)
+            for r in range(v.row + v.size, 6):
+                if (r, v.col) in board_cells: break
+                self.draw_hint_tile(v.col, r)
+
+    def draw_hint_tile(self, col, row):
+        x1, y1 = col * CELL_SIZE + 3, row * CELL_SIZE + 3
+        x2, y2 = x1 + CELL_SIZE - 6, y1 + CELL_SIZE - 6
+        self.canvas.create_rectangle(x1, y1, x2, y2, fill="", outline="#1A3A4A", width=1, dash=(2, 2), tags="hint")
+
+    def add_log(self, text, tag=""):
+        self.log_box.insert("end", text + "\n", tag)
+        self.log_box.see("end")
+
+    def set_status(self, mode, text=""):
+        if mode == "thinking":
+            self.status_dot.configure(text_color=ACCENT_ORANGE)
+            self.status_text.configure(text="AI đang tính toán...")
+        else:
+            self.status_dot.configure(text_color=GREEN_NEON)
+            self.status_text.configure(text=text if text else "Sẵn sàng — Kéo xe hoặc gọi AI")
+
+    # ═══════════════════════════════════════════════════
+    # AI SOLVER AGENT CẬP NHẬT THEO KHÓA CHỌN ĐỘNG
+    # ═══════════════════════════════════════════════════
+    def run_ai(self):
+        self.btn_ai.configure(state="disabled")
+        self.set_status("thinking")
+        self.add_log(f"[{self.current_algo_key}] Đang tính toán...", "info")
+
+        # Nạp chính xác đối tượng Solver được cấu hình động theo Màn và Thuật toán đang chọn
+        algos = LEVEL_DATA[self.current_level_id]["algorithms"]
+        solver = algos[self.current_algo_key]["solver"]
         
-        pygame.draw.rect(screen, PANEL_BG, panel_right, border_radius=12)
-        pygame.draw.rect(screen, BORDER_COLOR, panel_right, width=2, border_radius=12)
+        result = solver.solve(self.current_board)
 
-        # --- PANEL TRÁI: SA BÀN GAME ---
-        # Tính toán để đẩy bàn cờ vào chính giữa Panel trái
-        board_offset_x = panel_left.x + (panel_left.width - BOARD_SIZE) // 2
-        board_offset_y = panel_left.y + (panel_left.height - BOARD_SIZE) // 2
+        if not result:
+            self.add_log("Không tìm thấy lời giải!", "error")
+            self.set_status("ready", "Kẹt cứng — Cần reset màn chơi")
+            self.btn_ai.configure(state="normal")
+            return
 
-        state_to_draw = initial_state if game_status in ["WAITING", "SOLVING", "NO_SOLUTION"] else solution_path[current_step]
-        draw_board(screen, state_to_draw, board_offset_x, board_offset_y)
+        self.add_log(f"[{self.current_algo_key}] Đã duyệt {result['visited']} trạng thái", "info")
+        self.add_log(f"Tìm thấy lời giải {len(result['path'])} bước!", "success")
+        self.animate_path(result["path"], 0)
 
-        # --- PANEL PHẢI: THÔNG TIN & LOG ---
-        px, py = panel_right.x + 20, panel_right.y + 20
+    def animate_path(self, path, index):
+        if index >= len(path):
+            self.btn_ai.configure(state="normal")
+            self.set_status("ready")
+            return
+
+        name, steps = path[index]
+        v = self.current_board.vehicles[name]
         
-        title_surf = font_lg.render(f"Level {level_config['level']}", True, LIGHT_TEXT)
-        algo_surf = font_md.render(f"Thuật toán: {level_config['algo']}", True, (100, 200, 255))
-        screen.blit(title_surf, (px, py))
-        screen.blit(algo_surf, (px, py + 35))
+        dir_text = ("→ phải" if steps > 0 else "← trái") if v.orientation == 'H' else ("↓ xuống" if steps > 0 else "↑ lên")
+
+        self.current_board = self.current_board.move_vehicle(name, steps)
+        self.move_count += 1
+        self.pill_moves.configure(text=f"MOVES: {self.move_count}")
         
-        pygame.draw.line(screen, BORDER_COLOR, (px, py + 70), (panel_right.right - 20, py + 70), 2)
-
-        if game_status in ["ANIMATING", "FINISHED"]:
-            step_title = font_md.render(f"Lịch sử di chuyển ({current_step}/{len(solution_path)-1})", True, LIGHT_TEXT)
-            screen.blit(step_title, (px, py + 85))
-            
-            # Giới hạn in 14 bước gần nhất
-            start_idx = max(0, current_step - 14)
-            for i in range(start_idx, current_step):
-                color = (255, 215, 0) if i == current_step - 1 else (150, 150, 150)
-                txt_surf = font_sm.render(f"Bước {i+1}: {move_history_texts[i]}", True, color)
-                screen.blit(txt_surf, (px, py + 120 + (i - start_idx) * 25))
-
-            # NẾU XONG: HIỆN TỔNG HỢP LOG Ở ĐÁY PANEL PHẢI
-            if game_status == "FINISHED":
-                pygame.draw.rect(screen, (30, 80, 30), (px, panel_right.bottom - 70, panel_right.width - 40, 50), border_radius=8)
-                summary_txt = font_md.render(f"Đã giải quyết trong {len(solution_path)-1} bước!", True, WHITE)
-                screen.blit(summary_txt, (px + 10, panel_right.bottom - 58))
-
-        # --- THANH TRẠNG THÁI (STATUS BAR) BÊN DƯỚI ---
-        status_y = WINDOW_HEIGHT - 50
+        is_last = (index == len(path) - 1)
+        self.add_log(f"Bước {index + 1}: Xe {name} {dir_text} {abs(steps)} ô", "success" if is_last else "current")
         
-        if game_status == "WAITING":
-            status_text = font_lg.render("Nhấn [SPACE] để AI bắt đầu tính toán", True, (0, 200, 100))
-        elif game_status == "SOLVING":
-            status_text = font_lg.render("AI đang duyệt qua các trạng thái... Vui lòng chờ!", True, (255, 150, 0))
-            screen.blit(status_text, (40, status_y))
-            pygame.display.flip()
-            
-            solution_path = solver.solve(initial_state)
-            if not solution_path:
-                game_status = "NO_SOLUTION"
-            else:
-                game_status = "ANIMATING"
-                last_update_time = pygame.time.get_ticks()
-                move_history_texts = [get_move_description(solution_path[i], solution_path[i+1]) for i in range(len(solution_path)-1)]
-                status_text = font_lg.render("Đang mô phỏng kết quả...", True, (100, 150, 255))
-                
-        elif game_status == "ANIMATING":
-            status_text = font_lg.render("Đang mô phỏng kết quả...", True, (100, 150, 255))
-        elif game_status == "FINISHED":
-            status_text = font_lg.render("Hoàn tất! Nhấn [ESC] để quay lại Menu.", True, (0, 200, 100))
-        elif game_status == "NO_SOLUTION":
-            status_text = font_lg.render("Lỗi: Bản đồ bị khóa chết (Deadlock)!", True, (255, 50, 50))
+        self.draw_board()
+        self.check_win()
+        self.after(480, lambda: self.animate_path(path, index + 1))
 
-        if game_status != "SOLVING":
-            screen.blit(status_text, (40, status_y))
+    def check_win(self):
+        if self.current_board.is_goal():
+            self.set_status("ready", "🎯 XE THOÁT RA! LEVEL HOÀN THÀNH!")
+            self.add_log("🎯 XE THOÁT RA! LEVEL HOÀN THÀNH!", "success")
+            self.show_win_popup()
 
-        # --- LOGIC CHUYỂN CẢNH ---
-        if game_status == "ANIMATING":
-            current_time = pygame.time.get_ticks()
-            if current_time - last_update_time > step_delay:
-                if current_step < len(solution_path) - 1:
-                    current_step += 1
-                else:
-                    game_status = "FINISHED"
-                last_update_time = current_time
-
-        pygame.display.flip()
-        clock.tick(FPS)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    filename = f"level_{level_config['level']:02d}.json"
-    file_path = os.path.join(base_dir, "levels", filename)
-    
-    if not os.path.exists(file_path):
-        file_path = os.path.join(base_dir, "levels", "level_01.json")
-
-    initial_state = load_level(file_path)
-    solver = get_solver(level_config['algo'])
-
-    # Setup Fonts
-    font_sm = pygame.font.SysFont("segoe ui", 18)
-    font_md = pygame.font.SysFont("segoe ui", 22)
-    font_lg = pygame.font.SysFont("segoe ui", 26, bold=True)
-
-    game_status = "WAITING" 
-    solution_path = []
-    move_history_texts = [] # Lưu trữ chuỗi text các bước đi
-    
-    current_step = 0
-    step_delay = 500
-    last_update_time = 0
-
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return 
-                if event.key == pygame.K_SPACE and game_status == "WAITING":
-                    game_status = "SOLVING"
-
-        # TÔ MÀU NỀN TOÀN MÀN HÌNH
-        screen.fill(WHITE)
-
-        # --- KHU VỰC 1: SA BÀN GAME (Bên trái) ---
-        state_to_draw = initial_state if game_status in ["WAITING", "SOLVING", "NO_SOLUTION"] else solution_path[current_step]
-        draw_board(screen, state_to_draw)
-
-        # --- KHU VỰC 2: SIDEBAR (Bên phải) ---
-        sidebar_rect = pygame.Rect(BOARD_SIZE + 40, 0, SIDEBAR_WIDTH, WINDOW_HEIGHT - 60)
-        pygame.draw.rect(screen, DARK_BG, sidebar_rect)
+    def show_win_popup(self):
+        popup = tk.Toplevel(self)
+        popup.title("SOLVED!")
+        popup.geometry("380x220") 
+        popup.configure(bg=PANEL_COLOR)
+        popup.transient(self)
+        popup.grab_set()
         
-        # Tiêu đề Sidebar
-        title_surf = font_lg.render(f"Level {level_config['level']}", True, LIGHT_TEXT)
-        algo_surf = font_md.render(f"Algo: {level_config['algo']}", True, (100, 200, 255))
-        screen.blit(title_surf, (BOARD_SIZE + 60, 20))
-        screen.blit(algo_surf, (BOARD_SIZE + 60, 55))
+        x = self.winfo_x() + (self.winfo_width() // 2) - 190
+        y = self.winfo_y() + (self.winfo_height() // 2) - 110
+        popup.geometry(f"+{x}+{y}")
+
+        lbl_win = ctk.CTkLabel(popup, text="SOLVED!", font=("Space Mono", 32, "bold"), text_color=GREEN_NEON)
+        lbl_win.pack(pady=(30, 5))
+
+        lbl_sub = ctk.CTkLabel(popup, text=f"Xe thoát ra ngoài trong {self.move_count} bước đi!", font=("Rajdhani", 15), text_color=TEXT_MAIN)
+        lbl_sub.pack(pady=5)
+
+        btn_close = ctk.CTkButton(popup, text="Tiếp tục", font=("Rajdhani", 14, "bold"), fg_color=GREEN_NEON, text_color="#0A0C10", hover_color="#16A34A", command=popup.destroy)
+        btn_close.pack(pady=20)
+
+    def reset_game(self):
+        self.current_board = self.load_level(self.current_level_id)
+        self.move_count = 0
+        self.pill_moves.configure(text="MOVES: 0")
         
-        # Đường kẻ ngang
-        pygame.draw.line(screen, LIGHT_TEXT, (BOARD_SIZE + 60, 90), (WINDOW_WIDTH - 20, 90), 1)
-
-        # In danh sách các bước đi (Giới hạn hiển thị 15 bước gần nhất để không bị tràn màn hình)
-        if game_status in ["ANIMATING", "FINISHED"]:
-            step_title = font_md.render(f"Steps: {current_step} / {len(solution_path)-1}", True, LIGHT_TEXT)
-            screen.blit(step_title, (BOARD_SIZE + 60, 100))
-            
-            start_idx = max(0, current_step - 15)
-            for i in range(start_idx, current_step):
-                # Màu vàng cho bước hiện tại, màu xám cho bước cũ
-                color = (255, 215, 0) if i == current_step - 1 else (150, 150, 150)
-                txt_surf = font_sm.render(f"{i+1}. {move_history_texts[i]}", True, color)
-                screen.blit(txt_surf, (BOARD_SIZE + 60, 140 + (i - start_idx) * 25))
-
-        # --- KHU VỰC 3: THANH TRẠNG THÁI (Bên dưới) ---
-        status_rect = pygame.Rect(0, WINDOW_HEIGHT - 60, WINDOW_WIDTH, 60)
-        pygame.draw.rect(screen, STATUS_BG, status_rect)
-
-        # Căn chỉnh text ở thanh trạng thái
-        if game_status == "WAITING":
-            status_text = font_lg.render("Nhấn SPACE để AI bắt đầu giải", True, (0, 120, 0))
-        elif game_status == "SOLVING":
-            status_text = font_lg.render("Đang suy nghĩ... (Chờ chút nhé)", True, (200, 100, 0))
-            
-            # Ép render ngay lập tức trước khi AI khóa luồng
-            screen.blit(status_text, (20, WINDOW_HEIGHT - 45))
-            pygame.display.flip()
-            
-            solution_path = solver.solve(initial_state)
-            if not solution_path:
-                game_status = "NO_SOLUTION"
-            else:
-                game_status = "ANIMATING"
-                last_update_time = pygame.time.get_ticks()
-                # Dịch toàn bộ các bước ra text một lần
-                move_history_texts = [get_move_description(solution_path[i], solution_path[i+1]) for i in range(len(solution_path)-1)]
-                status_text = font_lg.render("Đang chạy Animation...", True, (0, 0, 200))
-                
-        elif game_status == "ANIMATING":
-            status_text = font_lg.render("AI đang giải...", True, (0, 0, 200))
-        elif game_status == "FINISHED":
-            status_text = font_lg.render("Đã giải xong! Nhấn ESC để thoát.", True, (0, 120, 0))
-        elif game_status == "NO_SOLUTION":
-            status_text = font_lg.render("Bản đồ khóa chết (Deadlock)!", True, (200, 0, 0))
-
-        # In chữ trạng thái bên trái góc dưới
-        if game_status != "SOLVING": # Né trường hợp đã in ở trên
-            screen.blit(status_text, (20, WINDOW_HEIGHT - 45))
-
-        # In chữ ESC bên phải góc dưới
-        esc_surf = font_md.render("ESC: Menu", True, (100, 100, 100))
-        screen.blit(esc_surf, (WINDOW_WIDTH - 120, WINDOW_HEIGHT - 40))
-
-        # --- LOGIC CHUYỂN CẢNH ---
-        if game_status == "ANIMATING":
-            current_time = pygame.time.get_ticks()
-            if current_time - last_update_time > step_delay:
-                if current_step < len(solution_path) - 1:
-                    current_step += 1
-                else:
-                    game_status = "FINISHED"
-                last_update_time = current_time
-
-        pygame.display.flip()
-        clock.tick(FPS)
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    filename = f"level_{level_config['level']:02d}.json"
-    file_path = os.path.join(base_dir, "levels", filename)
-    
-    # Đề phòng trường hợp chưa tạo file json cho level mới
-    if not os.path.exists(file_path):
-        print(f"Chưa tạo file {filename}! Tạm thời load level_01.json")
-        file_path = os.path.join(base_dir, "levels", "level_01.json")
-
-    initial_state = load_level(file_path)
-    solver = get_solver(level_config['algo'])
-
-    font_info = pygame.font.SysFont("segoe ui", 24)
-    font_large = pygame.font.SysFont("segoe ui", 18, bold=True)
-
-    # Các biến quản lý trạng thái
-    game_status = "WAITING" 
-    solution_path = []
-    current_step = 0
-    step_delay = 500
-    last_update_time = 0
-
-    running = True
-    while running:
-        # --- 1. BẮT SỰ KIỆN ---
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    return # Quay lại menu
-                
-                # Nhấn SPACE để kích hoạt AI nếu đang ở trạng thái chờ
-                if event.key == pygame.K_SPACE and game_status == "WAITING":
-                    game_status = "SOLVING"
-
-        # --- 2. XỬ LÝ & VẼ GIAO DIỆN THEO TRẠNG THÁI ---
-        screen.fill(GRAY)
-
-        if game_status == "WAITING":
-            draw_board(screen, initial_state)
-            # Vẽ thông báo nhấp nháy hoặc chữ đậm để người dùng biết cần làm gì
-            start_text = font_large.render("Nhấn SPACE (Khoảng trắng) để AI bắt đầu giải!", True, (0, 100, 0))
-            screen.blit(start_text, (WINDOW_WIDTH//2 - start_text.get_width()//2, WINDOW_HEIGHT - 65))
-
-        elif game_status == "SOLVING":
-            draw_board(screen, initial_state)
-            solving_text = font_large.render("AI đang dốc sức suy nghĩ...", True, (200, 100, 0))
-            screen.blit(solving_text, (WINDOW_WIDTH//2 - solving_text.get_width()//2, WINDOW_HEIGHT - 65))
-            
-            # Ép pygame phải vẽ dòng chữ "Đang suy nghĩ" ra màn hình TRƯỚC KHI bị thuật toán làm đứng máy
-            pygame.display.flip() 
-            
-            # Gọi thuật toán AI (Bước này tốn thời gian)
-            solution_path = solver.solve(initial_state)
-            
-            if not solution_path:
-                game_status = "NO_SOLUTION"
-            else:
-                game_status = "ANIMATING"
-                last_update_time = pygame.time.get_ticks()
-
-        elif game_status == "ANIMATING" or game_status == "FINISHED":
-            # Logic chuyển cảnh animation
-            current_time = pygame.time.get_ticks()
-            if game_status == "ANIMATING" and current_time - last_update_time > step_delay:
-                if current_step < len(solution_path) - 1:
-                    current_step += 1
-                else:
-                    game_status = "FINISHED" # Giải xong rồi thì đứng im
-                last_update_time = current_time
-
-            # Vẽ trạng thái từng bước
-            draw_board(screen, solution_path[current_step])
-            
-            # Vẽ thanh thông tin bên dưới
-            info_text = f"Level {level_config['level']} - {level_config['algo']} | Step {current_step}/{len(solution_path)-1}"
-            info_surf = font_info.render(info_text, True, (0,0,0))
-            screen.blit(info_surf, (20, WINDOW_HEIGHT - 35))
-
-        elif game_status == "NO_SOLUTION":
-            draw_board(screen, initial_state)
-            err_text = font_large.render("Bản đồ khóa chết! Không tìm thấy đường đi.", True, RED)
-            screen.blit(err_text, (WINDOW_WIDTH//2 - err_text.get_width()//2, WINDOW_HEIGHT - 65))
-
-        # Nút ESC luôn hiện ở góc dưới bên phải trong mọi trạng thái
-        esc_surf = font_info.render("Nhấn ESC để về Menu", True, RED)
-        screen.blit(esc_surf, (WINDOW_WIDTH - 240, WINDOW_HEIGHT - 35))
-
-        pygame.display.flip()
-        clock.tick(FPS)
-    """Vòng lặp chạy màn hình Game AI"""
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    # Tạm thời bắt mọi level chạy file level_01.json vì ta chưa tạo các file kia
-    # Sau này đổi thành: f"level_{level_config['level']:02d}.json"
-    file_path = os.path.join(base_dir, "levels", "level_01.json")
-    
-    initial_state = load_level(file_path)
-    solver = get_solver(level_config['algo'])
-    
-    print(f"Đang chạy Level {level_config['level']} bằng {level_config['algo']}...")
-    solution_path = solver.solve(initial_state)
-
-    if not solution_path:
-        print("Không tìm thấy đường đi!")
-        return # Quay lại menu
-
-    current_step = 0
-    step_delay = 500
-    last_update_time = pygame.time.get_ticks()
-    
-    # Font thông báo
-    font_info = pygame.font.SysFont("segoe ui", 24)
-
-    running = True
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                exit()
-            # Nhấn ESC để quay lại Menu
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
-                return 
-
-        # Logic Animation
-        current_time = pygame.time.get_ticks()
-        if current_time - last_update_time > step_delay:
-            if current_step < len(solution_path) - 1:
-                current_step += 1
-            last_update_time = current_time
-
-        screen.fill(GRAY)
+        # Reset lại menu thuật toán về lựa chọn mặc định của màn đó
+        self.update_algo_menu()
         
-        # Vẽ bàn cờ
-        draw_board(screen, solution_path[current_step])
-        
-        # Vẽ thông tin hướng dẫn
-        info_text = f"Level {level_config['level']} - {level_config['algo']} | Step {current_step}/{len(solution_path)-1}"
-        info_surf = font_info.render(info_text, True, (0,0,0))
-        screen.blit(info_surf, (20, WINDOW_HEIGHT - 35))
-        
-        esc_surf = font_info.render("Nhấn ESC để về Menu", True, (200, 0, 0))
-        screen.blit(esc_surf, (WINDOW_WIDTH - 240, WINDOW_HEIGHT - 35))
-
-        pygame.display.flip()
-        clock.tick(FPS)
-
-def main():
-    pygame.init()
-    screen = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
-    pygame.display.set_caption("Rush Hour AI Architecture")
-    clock = pygame.time.Clock()
-
-    # Vòng lặp Tổng của toàn bộ ứng dụng
-    while True:
-        # 1. Chạy màn hình Menu
-        selected_level = run_menu(screen, clock)
-        
-        # Nếu run_menu trả về None (người dùng bấm nút X tắt cửa sổ)
-        if selected_level is None:
-            break
-            
-        # 2. Chuyển sang màn hình Game với config vừa lấy được
-        run_game(screen, clock, selected_level)
-
-    pygame.quit()
+        self.draw_board()
+        self.log_box.delete("1.0", "end")
+        self.add_log("Log cleared.", "")
+        self.add_log(f"Level {self.current_level_id} đã được đặt lại trạng thái ban đầu.", "info")
+        self.set_status("ready")
 
 if __name__ == "__main__":
-    main()
+    ctk.set_appearance_mode("dark")
+    app = RushHourAIApp()
+    app.mainloop()
