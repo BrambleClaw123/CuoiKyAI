@@ -4,7 +4,7 @@ from algorithms.search_framework import Node, Frontier
 class BFSSolver(BaseSolver):
     def solve(self, initial_board):
         reached = set()
-        result_node = self.BFS_type_1(initial_board, reached)
+        result_node = self.BFS(initial_board, reached)
         if result_node == "Không thể giải được":
             return None
         path = []
@@ -15,18 +15,20 @@ class BFSSolver(BaseSolver):
         path.reverse()
         return {"path": path, "visited": len(reached)}
     
-    def BFS_type_1(self, problem, reached):
+    def BFS(self, problem, reached):
         node = Node(problem, None, None, 0)
+        if node.state.is_goal() == True:
+            return node
         frontier = Frontier(is_fifo=True) 
         frontier.enqueue(node)
         reached.add(node.state.state_key())
         while frontier.is_empty() == False:
             node = frontier.dequeue()
-            if node.state.is_goal() == True:
-                return node
-            for name, steps in node.state.get_valid_moves():
-                child_state = node.state.move_vehicle(name, steps)
-                child = Node(child_state, node, (name, steps), node.path_cost + 1)
+            for name, step in node.state.get_valid_moves():
+                child_state = node.state.move_vehicle(name, step)
+                child = Node(child_state, node, (name, step), node.path_cost + 1)
+                if child.state.is_goal() == True:
+                    return child
                 state_key = child.state.state_key()
                 if state_key not in reached and frontier.is_contain(child) == False:
                     reached.add(state_key)
