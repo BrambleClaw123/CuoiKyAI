@@ -2,6 +2,7 @@ from core.vehicle import Vehicle
 from algorithms.bfs_solver import BFSSolver
 from algorithms.dfs_solver import DFSSolver
 from algorithms.ids_solver import IDSSolver
+from algorithms.a_star_solver import AStarSolver
 # from algorithms.dfs_solver import DFSSolver
 # from algorithms.ids_solver import IDSSolver
 
@@ -71,7 +72,7 @@ LEVEL_DATA = {
         ],
         "algorithms": {
             "GSA": {"label": "Greedy Search Algorithm", "desc": "Duyệt theo hàm heuristic đánh giá.\nTập trung hướng đích, nhanh kịch bản.", "solver": BFSSolver()}, 
-            "A*":  {"label": "A* Algorithm", "desc": "Kết hợp chi phí thực tế và heuristic.\nTìm đường ngắn nhất tối ưu tuyệt đối.", "solver": BFSSolver()}, 
+            "A*":  {"label": "A* Algorithm", "desc": "Kết hợp chi phí thực tế và heuristic.\nTìm đường ngắn nhất tối ưu tuyệt đối.", "solver": AStarSolver()}, 
             "IDA*": {"label": "Iterative Deepening A*", "desc": "Phiên bản IDA* tiết kiệm bộ nhớ.\nDùng giới hạn chi phí tăng dần.", "solver": BFSSolver()}  
         }
     }

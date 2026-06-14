@@ -387,8 +387,11 @@ class RushHourAIApp(ctk.CTk):
             self.btn_ai.configure(state="normal")
             return
 
-        self.add_log(f"[{self.current_algo_key}] Đã duyệt {result['visited']} trạng thái", "info")
-        self.add_log(f"Tìm thấy lời giải {len(result['path'])} bước!", "success")
+        if isinstance(result['visited'], int):
+            self.add_log(f"[{self.current_algo_key}] Đã duyệt {result['visited']} trạng thái", "info")
+            self.add_log(f"Tìm thấy lời giải {len(result['path'])} bước!", "success")
+        else:
+            self.add_log(f"{result['visited']}", "info")
         self.animate_path(result["path"], 0)
 
     def animate_path(self, path, index):

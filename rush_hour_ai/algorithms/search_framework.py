@@ -7,6 +7,8 @@ class Node:
         self.parent = parent      # Node cha dẫn đến node này
         self.action = action      # Nước đi dẫn đến node này (Tên_xe, số_bước)
         self.path_cost = path_cost # Tổng số bước đi từ gốc
+    def __lt__(self, other):
+        return self.path_cost < other.path_cost
 
 class Frontier:
     """Hàng đợi FIFO/LIFO cơ bản phục vụ làm hàng đợi tìm kiếm"""
@@ -30,3 +32,12 @@ class Frontier:
 
     def is_contain(self, node):
         return node.state.state_key() in self.states_in_frontier
+    
+def hn(state):
+        row, col = state.vehicles["X"].row, state.vehicles["X"].col
+        cost = 4 - col
+        occupied_cells = state.get_occupied_cells()
+        for (r, c) in occupied_cells:
+            if r == row and c > col+1:
+                cost += 1
+        return cost
