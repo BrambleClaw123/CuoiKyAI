@@ -24,9 +24,10 @@ class AStarSolver(BaseSolver) :
             return node
         frontier = []
         heapq.heappush(frontier, node)
-        reached[node.state.state_key()] = node.path_cost
         while len(frontier) != 0:
             node = heapq.heappop(frontier)
+            reached[node.state.state_key()] = node.path_cost
+
             if node.path_cost > reached[node.state.state_key()]:
                 continue
             if node.state.is_goal() == True:
@@ -36,5 +37,4 @@ class AStarSolver(BaseSolver) :
                 child = Node(new_state, node, (v, action), node.path_cost - hn(node.state) + hn(new_state) + 1)
                 if new_state.state_key() not in reached or child.path_cost < reached[new_state.state_key()]:
                     heapq.heappush(frontier, child)
-                    reached[new_state.state_key()] = child.path_cost
         return "Không thể giải được"

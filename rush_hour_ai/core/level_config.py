@@ -3,8 +3,6 @@ from algorithms.bfs_solver import BFSSolver
 from algorithms.dfs_solver import DFSSolver
 from algorithms.ids_solver import IDSSolver
 from algorithms.a_star_solver import AStarSolver
-# from algorithms.dfs_solver import DFSSolver
-# from algorithms.ids_solver import IDSSolver
 
 BG_COLOR = "#0A0C10"
 PANEL_COLOR = "#111318"
