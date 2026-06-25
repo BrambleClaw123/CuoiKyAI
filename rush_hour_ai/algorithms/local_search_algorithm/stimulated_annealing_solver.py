@@ -26,7 +26,7 @@ class AnnealingSolver(BaseSolver):
         while T > Tmin:
             if current.state.is_goal() == True:
                 return current
-            next_node = random.choice([Node(current.state.move_vehicle(v, action), current, (v, action), hn(current.state)) for v, action in current.state.get_valid_moves()])
+            next_node = random.choice([Node(current.state.move_vehicle(v, action), current, (v, action), hn(current.state.move_vehicle(v, action))) for v, action in current.state.get_valid_moves()])
             denta = next_node.path_cost - current.path_cost
             if denta < 0 :
                 current = next_node

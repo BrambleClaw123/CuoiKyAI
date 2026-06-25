@@ -1,7 +1,6 @@
 import customtkinter as ctk
 import tkinter as tk
 from core.board import Board
-# Import toàn bộ hằng số hệ màu và map từ file cấu hình vừa tạo ở Bước 1
 from core.level_config import (
     BG_COLOR, PANEL_COLOR, PANEL2_COLOR, BORDER_COLOR,
     ACCENT_CYAN, ACCENT_ORANGE, GREEN_NEON, RED_NEON,
@@ -22,9 +21,10 @@ class RushHourAIApp(ctk.CTk):
         self.current_board = self.load_level(1)
         self.move_count = 0
         
-        # Quản lý thuật toán
+        # Quản lý thuật toán và level
         self.current_algo_key = "BFS"
         self.algo_buttons = {}  
+        self.level_buttons = {} 
 
         # Chuột kéo thả
         self.selected_vehicle_name = None
@@ -75,15 +75,26 @@ class RushHourAIApp(ctk.CTk):
         lbl_sec_lvl = ctk.CTkLabel(sidebar_left, text="--- LEVELS ---", font=("Space Mono", 10, "bold"), text_color=BORDER_COLOR, anchor="w")
         lbl_sec_lvl.pack(fill="x", padx=16, pady=(20, 5))
 
-        self.btn_lvl1 = ctk.CTkButton(sidebar_left, text="Gridlock Alpha   [1]", font=("Rajdhani", 14, "bold"), fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN, border_width=1, hover_color="#0B2531", anchor="w", command=lambda: self.switch_level(1))
-        self.btn_lvl1.pack(fill="x", padx=16, pady=4)
-
-        self.btn_lvl2 = ctk.CTkButton(sidebar_left, text="Beta Block       [2]", font=("Rajdhani", 14, "bold"), fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR, border_width=1, hover_color="#1F2937", anchor="w", command=lambda: self.switch_level(2))
-        self.btn_lvl2.pack(fill="x", padx=16, pady=4)
-
-        for dummy_lvl in ["Gamma Trap   [3]", "Delta Hard   [4]"]:
-            btn_lock = ctk.CTkButton(sidebar_left, text=dummy_lvl, font=("Rajdhani", 14, "bold"), fg_color="transparent", text_color="#475569", state="disabled", anchor="w")
-            btn_lock.pack(fill="x", padx=16, pady=4)
+        level_names = {
+            1: "Gridlock Alpha", 2: "Beta Block", 3: "Gamma Trap",
+            4: "Delta Hard", 5: "Epsilon CSP", 6: "Zeta Adver"
+        }
+        
+        for i in range(1, 7):
+            btn = ctk.CTkButton(
+                sidebar_left, 
+                text=f"{level_names[i]:<16} [{i}]", 
+                font=("Rajdhani", 14, "bold"), 
+                fg_color="transparent", 
+                text_color=TEXT_MAIN, 
+                border_color=BORDER_COLOR, 
+                border_width=1, 
+                hover_color="#1F2937", 
+                anchor="w", 
+                command=lambda lvl=i: self.switch_level(lvl)
+            )
+            btn.pack(fill="x", padx=16, pady=4)
+            self.level_buttons[i] = btn
 
         lbl_sec_alg = ctk.CTkLabel(sidebar_left, text="--- ALGORITHM ---", font=("Space Mono", 10, "bold"), text_color=BORDER_COLOR, anchor="w")
         lbl_sec_alg.pack(fill="x", padx=16, pady=(25, 5))
@@ -129,21 +140,46 @@ class RushHourAIApp(ctk.CTk):
         self.log_box.tag_config("info", foreground="#A78BFA")
         self.log_box.tag_config("current", foreground=ACCENT_CYAN)
         self.log_box.tag_config("success", foreground=GREEN_NEON)
+        self.log_box.tag_config("error", foreground=RED_NEON)
 
         # ═══════════════════════════════════════════════════
         # CENTER GAME AREA
         # ═══════════════════════════════════════════════════
-        center_area = ctk.CTkFrame(main_layout, fg_color="transparent")
-        center_area.pack(side="left", fill="both", expand=True)
+        self.center_area = ctk.CTkFrame(main_layout, fg_color="transparent")
+        self.center_area.pack(side="left", fill="both", expand=True)
 
-        board_outer = ctk.CTkFrame(center_area, fg_color=PANEL2_COLOR, border_color=BORDER_COLOR, border_width=2, corner_radius=12)
-        board_outer.place(relx=0.5, rely=0.45, anchor="center")
+        board_outer = ctk.CTkFrame(self.center_area, fg_color=PANEL2_COLOR, border_color=BORDER_COLOR, border_width=2, corner_radius=12)
+        board_outer.place(relx=0.5, rely=0.42, anchor="center")
 
         self.canvas = tk.Canvas(board_outer, width=CELL_SIZE*6, height=CELL_SIZE*6, bg="#0D1117", bd=0, highlightthickness=0)
         self.canvas.pack(padx=10, pady=10)
 
-        self.lbl_hint = ctk.CTkLabel(center_area, text="Kéo xe để di chuyển • Nhấn AI để giải tự động", font=("Rajdhani", 13, "normal"), text_color=TEXT_MUTED)
-        self.lbl_hint.place(relx=0.5, rely=0.85, anchor="center")
+        # Panel 1: Hint Text (Mặc định)
+        self.lbl_hint = ctk.CTkLabel(self.center_area, text="Kéo xe để di chuyển • Nhấn AI để giải tự động", font=("Rajdhani", 13, "normal"), text_color=TEXT_MUTED)
+        
+        # Panel 2: Hiển thị Belief Goals (Level 4 - BGS)
+        self.belief_panel = ctk.CTkFrame(self.center_area, fg_color="#451A03", corner_radius=8, border_color="#F59E0B", border_width=1)
+        ctk.CTkLabel(self.belief_panel, text="🎯 TẬP ĐÍCH MÙ (BELIEF GOALS)", font=("Rajdhani", 14, "bold"), text_color="#FCD34D").pack(pady=(5, 0), padx=10)
+        ctk.CTkLabel(self.belief_panel, text="Trạng thái 1: Xe Đỏ (X) ở cột 4 (thoát bên phải)\nTrạng thái 2: Xe Đỏ (X) ở cột 0 (thoát bên trái)", font=("Space Mono", 11), text_color=TEXT_MAIN).pack(pady=(0, 5), padx=15)
+
+        # Panel 3: Kho chứa xe chờ xếp (Level 5 - CSP)
+        self.inventory_panel = ctk.CTkFrame(self.center_area, fg_color=PANEL2_COLOR, corner_radius=8, border_color=BORDER_COLOR, border_width=1)
+
+        # Panel 4: Đối kháng Minimax (Level 6 - Adversarial)
+        self.adversarial_panel = ctk.CTkFrame(self.center_area, fg_color=PANEL2_COLOR, corner_radius=8, border_color=BORDER_COLOR, border_width=1)
+        
+        top_adv = ctk.CTkFrame(self.adversarial_panel, fg_color="transparent")
+        top_adv.pack(fill="x", pady=(8, 2))
+        
+        self.lbl_max = ctk.CTkLabel(top_adv, text=" 🛡️ MAX (Đỏ/Xanh) ", font=("Rajdhani", 14, "bold"), corner_radius=6)
+        self.lbl_max.pack(side="left", padx=(10, 5))
+        self.lbl_vs = ctk.CTkLabel(top_adv, text="VS", font=("Space Mono", 14, "bold", "italic"), text_color=TEXT_MUTED)
+        self.lbl_vs.pack(side="left", padx=5)
+        self.lbl_min = ctk.CTkLabel(top_adv, text=" ⚔️ MIN (Cảnh sát) ", font=("Rajdhani", 14, "bold"), corner_radius=6)
+        self.lbl_min.pack(side="left", padx=(5, 10))
+        
+        self.lbl_turn_counter = ctk.CTkLabel(self.adversarial_panel, text="Lượt: 0/20", font=("Space Mono", 12, "bold"), text_color=ACCENT_ORANGE)
+        self.lbl_turn_counter.pack(side="bottom", pady=(0, 8))
 
         # ═══════════════════════════════════════════════════
         # STATUS BAR
@@ -196,6 +232,27 @@ class RushHourAIApp(ctk.CTk):
         self.lbl_desc_t.configure(text=f"{self.current_algo_key} Agent")
         self.lbl_desc_b.configure(text=current_info["desc"])
 
+        # Logic ẩn/hiện Panels theo Level
+        self.belief_panel.place_forget()
+        self.inventory_panel.place_forget()
+        self.adversarial_panel.place_forget()
+        self.lbl_hint.place_forget()
+
+        if self.current_level_id == 4 and self.current_algo_key == "BGS":
+            self.belief_panel.place(relx=0.5, rely=0.88, anchor="center")
+        elif self.current_level_id == 5:
+            self.inventory_panel.place(relx=0.5, rely=0.89, anchor="center")
+        elif self.current_level_id == 6:
+            self.adversarial_panel.place(relx=0.5, rely=0.88, anchor="center")
+            self.lbl_max.configure(text_color=GREEN_NEON, fg_color="transparent")
+            self.lbl_min.configure(text_color=RED_NEON, fg_color="transparent")
+            self.lbl_turn_counter.configure(text="Lượt: 0/20")
+        else:
+            self.lbl_hint.place(relx=0.5, rely=0.86, anchor="center")
+            self.lbl_hint.configure(text="Kéo xe để di chuyển • Nhấn AI để giải tự động")
+            
+        self.draw_board() 
+
     def switch_level(self, level_id):
         self.initial_board = self.load_level(level_id)
         self.current_board = self.load_level(level_id)
@@ -203,12 +260,11 @@ class RushHourAIApp(ctk.CTk):
         self.pill_level.configure(text=f"LEVEL: {level_id}")
         self.pill_moves.configure(text="MOVES: 0")
         
-        if level_id == 1:
-            self.btn_lvl1.configure(fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN)
-            self.btn_lvl2.configure(fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR)
-        elif level_id == 2:
-            self.btn_lvl1.configure(fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR)
-            self.btn_lvl2.configure(fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN)
+        for lvl, btn in self.level_buttons.items():
+            if lvl == level_id:
+                btn.configure(fg_color="#0B1A22", text_color=ACCENT_CYAN, border_color=ACCENT_CYAN)
+            else:
+                btn.configure(fg_color="transparent", text_color=TEXT_MAIN, border_color=BORDER_COLOR)
 
         self.update_algo_menu()
         self.draw_board()
@@ -219,14 +275,30 @@ class RushHourAIApp(ctk.CTk):
 
     def draw_board(self):
         self.canvas.delete("all")
+        
+        # Vẽ lưới
         for i in range(1, 6):
             pos = i * CELL_SIZE
             self.canvas.create_line(pos, 0, pos, CELL_SIZE*6, fill="#21262D", width=1)
             self.canvas.create_line(0, pos, CELL_SIZE*6, pos, fill="#21262D", width=1)
 
+        # Vẽ vùng cấm cho Level 5 (CSP)
+        if self.current_level_id == 5:
+            rx1 = 0
+            ry1 = 2 * CELL_SIZE
+            rx2 = 6 * CELL_SIZE
+            ry2 = 3 * CELL_SIZE
+            self.canvas.create_rectangle(rx1, ry1, rx2, ry2, fill="#3A1015", outline="#EF4444", width=2, dash=(4,4), tags="csp_zone")
+            self.canvas.create_text(CELL_SIZE * 3, ry1 + CELL_SIZE/2, text="ĐƯỜNG CHẠY CỦA XE ĐỎ (CẤM XÂM PHẠM)", fill="#EF4444", font=("Rajdhani", 12, "bold"))
+
         exit_y1 = 2 * CELL_SIZE + 2
         exit_y2 = 3 * CELL_SIZE - 2
-        self.canvas.create_rectangle(CELL_SIZE*6 - 6, exit_y1, CELL_SIZE*6, exit_y2, fill=RED_NEON, outline="")
+        
+        if self.current_level_id != 5:
+            self.canvas.create_rectangle(CELL_SIZE*6 - 6, exit_y1, CELL_SIZE*6, exit_y2, fill=RED_NEON, outline="")
+        
+        if self.current_level_id == 4 and self.current_algo_key == "BGS":
+            self.canvas.create_rectangle(0, exit_y1, 6, exit_y2, fill=RED_NEON, outline="")
 
         pad_brick = 5
         for (r, c) in self.current_board.bricks:
@@ -243,8 +315,12 @@ class RushHourAIApp(ctk.CTk):
             for (sx, sy) in screws:
                 self.canvas.create_oval(sx - 3, sy - 3, sx + 3, sy + 3, fill="#8A94A2", outline="")
 
+        # Vẽ các xe có trên bàn cờ
         pad = 5
         for name, v in self.current_board.vehicles.items():
+            if v.row < 0 or v.col < 0:
+                continue
+
             color_cfg = CAR_COLORS.get(name, {"bg": "#1F2937", "border": "#4B5563", "text": "#FFFFFF"})
             x1 = v.col * CELL_SIZE + pad
             y1 = v.row * CELL_SIZE + pad
@@ -263,7 +339,34 @@ class RushHourAIApp(ctk.CTk):
                 self.canvas.tag_bind(item_id, "<B1-Motion>", self.on_vehicle_drag)
                 self.canvas.tag_bind(item_id, "<ButtonRelease-1>", self.on_vehicle_release)
 
+        # Cập nhật UI Kho Xe (Inventory Panel) cho Level 5
+        if self.current_level_id == 5:
+            for widget in self.inventory_panel.winfo_children():
+                widget.destroy()
+                
+            title = ctk.CTkLabel(self.inventory_panel, text="KHO XE CHỜ XẾP:", font=("Rajdhani", 12, "bold"), text_color=TEXT_MUTED)
+            title.pack(side="left", padx=10, pady=8)
+            
+            unplaced = [v for v in self.current_board.vehicles.values() if v.name != 'X' and (v.row < 0 or v.col < 0)]
+            
+            if not unplaced:
+                ctk.CTkLabel(self.inventory_panel, text="Đã xếp xong tất cả!", font=("Space Mono", 12, "bold"), text_color=GREEN_NEON).pack(side="left", padx=10)
+            else:
+                for v in unplaced:
+                    color_cfg = CAR_COLORS.get(v.name, {"bg": "#1F2937", "border": "#4B5563", "text": "#FFFFFF"})
+                    dir_txt = "Dọc" if v.orientation == 'V' else "Ngang"
+                    badge = ctk.CTkLabel(
+                        self.inventory_panel, 
+                        text=f" {v.name} ({dir_txt} {v.size}) ", 
+                        font=("Space Mono", 11, "bold"), 
+                        fg_color=color_cfg["bg"], 
+                        text_color=color_cfg["text"], 
+                        corner_radius=4
+                    )
+                    badge.pack(side="left", padx=4, pady=8)
+
     def on_vehicle_click(self, event, name):
+        if self.current_level_id == 5: return # CSP không hỗ trợ trượt tay
         self.selected_vehicle_name = name
         v = self.current_board.vehicles[name]
         self.drag_start_x = event.x
@@ -274,7 +377,7 @@ class RushHourAIApp(ctk.CTk):
         self.show_move_hints(v)
 
     def on_vehicle_drag(self, event):
-        if not self.selected_vehicle_name: return
+        if not self.selected_vehicle_name or self.current_level_id == 5: return
         v = self.current_board.vehicles[self.selected_vehicle_name]
         dx = event.x - self.drag_start_x
         dy = event.y - self.drag_start_y
@@ -309,7 +412,7 @@ class RushHourAIApp(ctk.CTk):
         self.canvas.create_rectangle(gx1, gy1, gx2, gy2, outline=ACCENT_CYAN, width=1.5, dash=(4, 4), tags="ghost")
 
     def on_vehicle_release(self, event):
-        if not self.selected_vehicle_name: return
+        if not self.selected_vehicle_name or self.current_level_id == 5: return
         self.canvas.delete("ghost")
         self.canvas.delete("hint")
         v = self.current_board.vehicles[self.selected_vehicle_name]
@@ -363,14 +466,32 @@ class RushHourAIApp(ctk.CTk):
         self.log_box.insert("end", text + "\n", tag)
         self.log_box.see("end")
 
+    # --- HÀM SET STATUS ĐƯỢC NÂNG CẤP ---
     def set_status(self, mode, text=""):
+        colors = {
+            "ready": GREEN_NEON,
+            "thinking": ACCENT_ORANGE,
+            "local_max": RED_NEON,
+            "success": "#34D399"
+        }
+        self.status_dot.configure(text_color=colors.get(mode, GREEN_NEON))
+        
         if mode == "thinking":
-            self.status_dot.configure(text_color=ACCENT_ORANGE)
             self.status_text.configure(text="AI đang tính toán...")
+        elif mode == "local_max":
+            self.status_text.configure(text="⚠️ BẾ TẮC (LOCAL MAXIMUM)")
+        elif mode == "success":
+            self.status_text.configure(text="✅ ĐÃ TÌM THẤY LỜI GIẢI!")
         else:
-            self.status_dot.configure(text_color=GREEN_NEON)
             self.status_text.configure(text=text if text else "Sẵn sàng — Kéo xe hoặc gọi AI")
 
+    # --- HÀM FLASH CANVAS TẠO HIỆU ỨNG CHỚP ĐỎ ---
+    def flash_canvas(self, color):
+        original_bg = self.canvas.cget("bg")
+        self.canvas.configure(bg=color)
+        self.after(600, lambda: self.canvas.configure(bg=original_bg))
+
+    # --- HÀM RUN AI KIỂM TRA BẾ TẮC ---
     def run_ai(self):
         self.btn_ai.configure(state="disabled")
         self.set_status("thinking")
@@ -381,25 +502,97 @@ class RushHourAIApp(ctk.CTk):
         
         result = solver.solve(self.current_board)
 
-        if not result:
+        # Logic kiểm tra bế tắc
+        if result is None or not isinstance(result, dict) or not result.get("path"):
             self.add_log("Không tìm thấy lời giải!", "error")
-            self.set_status("ready", "Kẹt cứng — Cần reset màn chơi")
+            self.set_status("ready", "Kẹt cứng — Không tìm thấy đường đi/cách xếp")
             self.btn_ai.configure(state="normal")
+            return
+        
+        is_stuck = not result or not result.get("path") or (isinstance(result.get("visited"), str) and "không thể giải" in result["visited"])
+
+        if is_stuck:
+            self.add_log("❌ THẤT BẠI: AI đã rơi vào tối ưu cục bộ (Local Maximum)!", "error")
+            if isinstance(result.get("visited"), str):
+                self.add_log(f"Lý do: {result['visited']}", "error")
+            self.set_status("local_max")
+            self.btn_ai.configure(state="normal")
+            self.flash_canvas("#450A0A")
+            return
+
+        # Nếu thành công
+        self.add_log("✨ Tìm thấy đường đi!", "success")
+        self.set_status("success")
+
+        if self.current_level_id == 5:
+            self.add_log(f"[{self.current_algo_key}] Đã duyệt {result['visited']} trạng thái gán", "info")
+            if result.get("solution"):
+                self.add_log("Tìm thấy cách xếp thỏa mãn!", "success")
+            else:
+                self.add_log("Không có cách xếp nào thỏa mãn!", "error")
+            self.animate_path(result["path"], 0, is_csp=True, solution_found=(result.get("solution") is not None))
             return
 
         if isinstance(result['visited'], int):
             self.add_log(f"[{self.current_algo_key}] Đã duyệt {result['visited']} trạng thái", "info")
-            self.add_log(f"Tìm thấy lời giải {len(result['path'])} bước!", "success")
+            self.add_log(f"Đã lên kịch bản đối kháng {len(result['path'])} bước!" if self.current_level_id == 6 else f"Tìm thấy lời giải {len(result['path'])} bước!", "success")
         else:
             self.add_log(f"{result['visited']}", "info")
+            
         self.animate_path(result["path"], 0)
 
-    def animate_path(self, path, index):
+    def animate_path(self, path, index, is_csp=False, solution_found=False):
         if index >= len(path):
             self.btn_ai.configure(state="normal")
-            self.set_status("ready")
+            if is_csp:
+                if solution_found:
+                    self.set_status("ready", "🎯 ĐÃ XẾP XONG TẤT CẢ CÁC XE!")
+                    self.show_win_popup()
+                else:
+                    self.set_status("ready", "Không tìm thấy cách xếp hợp lệ!")
+            else:
+                if self.current_level_id == 6:
+                    self.lbl_max.configure(text_color=GREEN_NEON, fg_color="transparent")
+                    self.lbl_min.configure(text_color=RED_NEON, fg_color="transparent")
+                    
+                    if self.current_board.is_goal():
+                        self.set_status("ready", "🛡️ MAX ĐÃ TẨU THOÁT THÀNH CÔNG!")
+                        self.add_log("Trận đấu kết thúc: MAX THẮNG", "success")
+                        self.show_win_popup("MAX WINS!")
+                    else:
+                        self.set_status("ready", "⚔️ MIN ĐÃ BAO VÂY, MAX KẾT THÚC!")
+                        self.add_log("Trận đấu kết thúc: MIN THẮNG (Phòng thủ thành công)", "error")
+                        self.show_win_popup("MIN WINS!")
+                else:
+                    self.set_status("ready")
             return
 
+        # --- ANIMATION DÀNH CHO CSP (LEVEL 5) ---
+        if is_csp:
+            assignment = path[index]
+            new_vehicles = []
+            
+            for v_init in self.initial_board.vehicles.values():
+                v_clone = v_init.clone()
+                if v_clone.name == 'X':
+                    pass 
+                elif v_clone.name in assignment:
+                    v_clone.row, v_clone.col = assignment[v_clone.name]
+                else:
+                    v_clone.row, v_clone.col = -1, -1 
+                new_vehicles.append(v_clone)
+                    
+            self.current_board = Board(new_vehicles, self.initial_board.bricks)
+            self.pill_moves.configure(text=f"STEPS: {index + 1}/{len(path)}")
+            
+            assigned_str = ", ".join([f"{k}:{v}" for k,v in assignment.items()])
+            self.add_log(f"Trạng thái {index + 1}: {assigned_str}", "current")
+            
+            self.draw_board()
+            self.after(150, lambda: self.animate_path(path, index + 1, is_csp, solution_found))
+            return
+
+        # --- ANIMATION DÀNH CHO SLIDING PUZZLE & MINIMAX ---
         name, steps = path[index]
         v = self.current_board.vehicles[name]
         
@@ -410,21 +603,69 @@ class RushHourAIApp(ctk.CTk):
         self.pill_moves.configure(text=f"MOVES: {self.move_count}")
         
         is_last = (index == len(path) - 1)
-        self.add_log(f"Bước {index + 1}: Xe {name} {dir_text} {abs(steps)} ô", "success" if is_last else "current")
+        
+        if self.current_level_id == 6:
+            is_max_turn = (index % 2 == 0)
+            
+            self.lbl_turn_counter.configure(text=f"Lượt: {index + 1}/20")
+            
+            if is_max_turn:
+                self.lbl_max.configure(text_color=BG_COLOR, fg_color=GREEN_NEON) 
+                self.lbl_min.configure(text_color=TEXT_MUTED, fg_color="transparent")
+                turn_label = "[MAX]"
+                log_color = "success" 
+            else:
+                self.lbl_max.configure(text_color=TEXT_MUTED, fg_color="transparent")
+                self.lbl_min.configure(text_color=BG_COLOR, fg_color=RED_NEON) 
+                turn_label = "[MIN]"
+                log_color = "error" 
+                
+            self.add_log(f"{turn_label} Xe {name} {dir_text} {abs(steps)} ô", log_color)
+        else:
+            self.add_log(f"Bước {index + 1}: Xe {name} {dir_text} {abs(steps)} ô", "success" if is_last else "current")
         
         self.draw_board()
-        self.check_win()
-        self.after(480, lambda: self.animate_path(path, index + 1))
+        
+        if self.current_level_id == 4 and self.current_algo_key == "BGS":
+            if self.current_board.vehicles['X'].col == 4 or self.current_board.vehicles['X'].col == 0:
+                self.set_status("ready", "🎯 XE ĐÃ VÀO TRẠNG THÁI BELIEF GOAL!")
+                self.add_log("🎯 TÌM THẤY LỜI GIẢI ĐÍCH MÙ!", "success")
+                self.show_win_popup()
+                self.btn_ai.configure(state="normal")
+                return
+        else:
+            self.check_win()
+            if self.current_board.is_goal() and self.current_level_id != 6:
+                self.btn_ai.configure(state="normal")
+                return
+                
+        delay_speed = 800 if self.current_level_id == 6 else 480
+        self.after(delay_speed, lambda: self.animate_path(path, index + 1))
 
     def check_win(self):
-        if self.current_board.is_goal():
+        if self.current_board.is_goal() and self.current_level_id != 6:
             self.set_status("ready", "🎯 XE THOÁT RA! LEVEL HOÀN THÀNH!")
             self.add_log("🎯 XE THOÁT RA! LEVEL HOÀN THÀNH!", "success")
             self.show_win_popup()
 
-    def show_win_popup(self):
+    def show_win_popup(self, custom_title=None):
         popup = tk.Toplevel(self)
-        popup.title("SOLVED!")
+        if custom_title:
+            popup.title(custom_title)
+            win_text = custom_title
+            sub_text = f"Trận đấu kết thúc ở lượt thứ {self.move_count}!"
+            color = RED_NEON if "MIN" in custom_title else GREEN_NEON
+        elif self.current_level_id == 5:
+            popup.title("ARRANGED!")
+            win_text = "SUCCESS!"
+            sub_text = "Đã xếp xong xe không vi phạm ràng buộc!"
+            color = GREEN_NEON
+        else:
+            popup.title("SOLVED!")
+            win_text = "SOLVED!"
+            sub_text = f"Hoàn thành trong {self.move_count} bước đi!"
+            color = GREEN_NEON
+            
         popup.geometry("380x220") 
         popup.configure(bg=PANEL_COLOR)
         popup.transient(self)
@@ -434,13 +675,13 @@ class RushHourAIApp(ctk.CTk):
         y = self.winfo_y() + (self.winfo_height() // 2) - 110
         popup.geometry(f"+{x}+{y}")
 
-        lbl_win = ctk.CTkLabel(popup, text="SOLVED!", font=("Space Mono", 32, "bold"), text_color=GREEN_NEON)
-        lbl_win.pack(pady=(30, 5))
+        lbl_win = ctk.CTkLabel(popup, text=win_text, font=("Space Mono", 32, "bold"), text_color=color)
+        lbl_sub = ctk.CTkLabel(popup, text=sub_text, font=("Rajdhani", 15), text_color=TEXT_MAIN)
 
-        lbl_sub = ctk.CTkLabel(popup, text=f"Xe thoát ra ngoài trong {self.move_count} bước đi!", font=("Rajdhani", 15), text_color=TEXT_MAIN)
+        lbl_win.pack(pady=(30, 5))
         lbl_sub.pack(pady=5)
 
-        btn_close = ctk.CTkButton(popup, text="Tiếp tục", font=("Rajdhani", 14, "bold"), fg_color=GREEN_NEON, text_color="#0A0C10", hover_color="#16A34A", command=popup.destroy)
+        btn_close = ctk.CTkButton(popup, text="Tiếp tục", font=("Rajdhani", 14, "bold"), fg_color=color, text_color="#0A0C10", hover_color="#16A34A", command=popup.destroy)
         btn_close.pack(pady=20)
 
     def reset_game(self):

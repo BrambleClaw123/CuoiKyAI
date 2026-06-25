@@ -20,14 +20,11 @@ class AStarSolver(BaseSolver) :
     
     def a_star(self, problem, reached):
         node = Node(problem, None, None, 0 + hn(problem))
-        if node.state.is_goal() == True:
-            return node
         frontier = []
         heapq.heappush(frontier, node)
         while len(frontier) != 0:
             node = heapq.heappop(frontier)
             reached[node.state.state_key()] = node.path_cost
-
             if node.path_cost > reached[node.state.state_key()]:
                 continue
             if node.state.is_goal() == True:

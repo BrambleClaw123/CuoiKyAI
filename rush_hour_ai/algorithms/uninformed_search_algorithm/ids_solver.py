@@ -9,7 +9,7 @@ class IDSSolver(BaseSolver):
             if node.state.is_goal():
                 return node
             result = "Không thể giải được"
-            frontier = Frontier(is_fifo=False)  # stack
+            frontier = Frontier(is_fifo=False)
             frontier.enqueue(node)
             reached.add(node.state.state_key())
             while not frontier.is_empty():
@@ -19,12 +19,7 @@ class IDSSolver(BaseSolver):
                     continue
                 for name, step in node.state.get_valid_moves():
                     child_state = node.state.move_vehicle(name, step)
-                    child = Node(
-                        child_state,
-                        node,
-                        (name, step),
-                        node.path_cost + 1
-                    )
+                    child = Node(child_state, node, (name, step), node.path_cost + 1)
                     if child.state.is_goal():
                         return child
                     key = child.state.state_key()
