@@ -14,6 +14,9 @@ from algorithms.local_search_algorithm.shc_solver import SHCSolver
 from algorithms.search_in_complex_environment.and_or_graph import AndOrGraphSolver
 from algorithms.constraint_satisfaction_problem.forward_checking import ForwardCheckingSolver
 from algorithms.constraint_satisfaction_problem.min_conflict_solver import MinConflictsSolver
+from algorithms.search_in_complex_environment.partial_start_solver import PartialStartSolver
+from algorithms.adversarial_search_problem.expectimax_solver import ExpectimaxSolver
+from algorithms.adversarial_search_problem.alphabeta_solver import AlphaBetaSolver
 
 BG_COLOR = "#0A0C10"
 PANEL_COLOR = "#111318"
@@ -125,15 +128,35 @@ LEVEL_DATA = {
         "bricks": [(0, 0), (5, 0), (5, 5)],
         "vehicles": [
             Vehicle('X', 2, 1, 2, 'H', is_target=True),
-            Vehicle('A', 0, 3, 3, 'V'), 
-            Vehicle('D', 1, 4, 2, 'V'),
-            Vehicle('B', 3, 2, 2, 'H'), 
-            Vehicle('C', 4, 4, 2, 'H'),
+            Vehicle('A', 0, 3, 3, 'V'), Vehicle('D', 1, 4, 2, 'V'),
+            Vehicle('B', 3, 2, 2, 'H'), Vehicle('C', 4, 4, 2, 'H'),
             Vehicle('E', 1, 0, 2, 'V')
+        ],
+        "partial_view": [
+            Vehicle('X', 2, 1, 2, 'H', is_target=True),
+            Vehicle('A', 0, 3, 3, 'V')
+        ],
+        "belief_starts": [
+            [
+                Vehicle('X', 2, 1, 2, 'H', is_target=True),
+                Vehicle('A', 0, 3, 3, 'V'), 
+                Vehicle('D', 1, 4, 2, 'V'),
+                Vehicle('B', 3, 2, 2, 'H'),
+                Vehicle('C', 4, 4, 2, 'H'),
+                Vehicle('E', 1, 0, 2, 'V')
+            ],
+            [
+                Vehicle('X', 2, 1, 2, 'H', is_target=True),
+                Vehicle('A', 0, 3, 3, 'V'), 
+                Vehicle('D', 1, 4, 2, 'V'),
+                Vehicle('B', 3, 3, 2, 'H'),
+                Vehicle('C', 4, 4, 2, 'H'),
+                Vehicle('E', 1, 0, 2, 'V')
+            ]
         ],
         "algorithms": {
             "BGS": {"label": "Blind-Goal Search", "desc": "Tìm kiếm đích mù (Belief-Goal).\nGiải quyết bài toán khi không có thông tin hoàn hảo.", "solver": BeliefGoalSolver()}, 
-            "PSS": {"label": "Partial-Start Search", "desc": "Tìm kiếm bắt đầu một phần.\nXử lý không gian trạng thái với khởi đầu không chắc chắn.", "solver": BFSSolver()}, # Placeholder
+            "PSS": {"label": "Partial-Start Search", "desc": "Tìm kiếm bắt đầu một phần.\nXử lý không gian trạng thái với khởi đầu không chắc chắn.", "solver": PartialStartSolver()}, 
             "AOG": {"label": "And-Or-Graph Search", "desc": "Duyệt đồ thị AND-OR.\nTìm lời giải dự phòng cho môi trường không tất định.", "solver": AndOrGraphSolver()} 
         }
     },
@@ -174,54 +197,9 @@ LEVEL_DATA = {
             Vehicle('F', 3, 4, 2, 'H')  # Xe dân sự đang vô tình chắn đường xe cảnh sát C
         ],
         "algorithms": {
-            "MM": {"label": "Pure Minimax", "desc": "Minimax không cắt tỉa.\nCảnh sát phải dọn đường để truy đuổi, nhưng MAX nhanh hơn 1 nhịp!", "solver": MinimaxSolver()}
+            "MM": {"label": "Minimax", "desc": "Minimax không cắt tỉa.", "solver": MinimaxSolver()},
+            "AB": {"label": "Alpha-Beta", "desc": "Minimax có cắt tỉa Alpha-Beta.", "solver": AlphaBetaSolver()},
+            "EX": {"label": "Expectimax", "desc": "Đối thủ hành động ngẫu nhiên theo xác suất.", "solver": ExpectimaxSolver()}
         }
     }
 }
-
-# LEVEL_DATA = {
-#     1: {
-#         "name": "Gridlock Alpha",
-#         "bricks": [(0, 3)],
-#         "vehicles": [
-#             Vehicle('X', 2, 1, 2, 'H', is_target=True),
-#             Vehicle('A', 0, 0, 2, 'V'), 
-#             Vehicle('B', 0, 1, 2, 'H'), 
-#             Vehicle('C', 1, 3, 2, 'V'), 
-#             Vehicle('D', 1, 4, 2, 'H'),
-#             Vehicle('E', 2, 0, 2, 'V'), 
-#             Vehicle('F', 3, 2, 2, 'V'), 
-#             Vehicle('G', 3, 3, 2, 'H'),
-#             Vehicle('H', 3, 5, 3, 'V'), 
-#             Vehicle('I', 4, 0, 2, 'H'), 
-#             Vehicle('J', 5, 0, 2, 'H'),
-#             Vehicle('K', 5, 2, 3, 'H')
-#         ],
-#         "algorithms": {
-#             "BFS": {"label": "Breadth-First Search", "desc": "Tìm theo chiều rộng, duyệt từng lớp.\nĐảm bảo thời gian nhưng tốn RAM.", "solver": BFSSolver()},
-#             "DFS": {"label": "Depth-First Search", "desc": "Đi sâu vào một nhánh trước.\nÍt tốn bộ nhớ nhưng không đảm bảo thời gian.", "solver": DFSSolver()}, 
-#             "IDS": {"label": "Iterative Deepening", "desc": "Kết hợp ưu điểm của BFS và DFS.\nKết hợp ưu điểm về thời gian của BFS và bộ nhớ của DFS.", "solver": IDSSolver()}  
-#         }
-#     },
-#     2: {
-#         "name": "Beta Block",
-#         "bricks": [(0, 3), (5, 2)],
-#         "vehicles": [
-#             Vehicle('X', 2, 1, 2, 'H', is_target=True),
-#             Vehicle('A', 0, 0, 2, 'H'),
-#             Vehicle('B', 0, 4, 2, 'H'),
-#             Vehicle('C', 1, 0, 2, 'V'),
-#             Vehicle('D', 1, 3, 2, 'V'),
-#             Vehicle('E', 2, 5, 3, 'V'),
-#             Vehicle('F', 3, 0, 2, 'V'),
-#             Vehicle('G', 3, 2, 2, 'V'),
-#             Vehicle('H', 3, 3, 2, 'H'),
-#             Vehicle('I', 4, 3, 2, 'H')
-#         ],
-#         "algorithms": {
-#             "GSA": {"label": "Greedy Search Algorithm", "desc": "Duyệt theo hàm heuristic đánh giá.\nTập trung hướng đích, nhanh kịch bản.", "solver": BFSSolver()}, 
-#             "A*":  {"label": "A* Algorithm", "desc": "Kết hợp chi phí thực tế và heuristic.\nTìm đường ngắn nhất tối ưu tuyệt đối.", "solver": AStarSolver()}, 
-#             "IDA*": {"label": "Iterative Deepening A*", "desc": "Phiên bản IDA* tiết kiệm bộ nhớ.\nDùng giới hạn chi phí tăng dần.", "solver": BFSSolver()}  
-#         }
-#     }
-# }
