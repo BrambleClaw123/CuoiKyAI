@@ -174,7 +174,7 @@ class RushHourAIApp(ctk.CTk):
         self.center_area = ctk.CTkFrame(main_layout, fg_color="transparent")
         self.center_area.pack(side="left", fill="both", expand=True)
 
-        # KHUNG 1: BÀN CỜ CHÍNH (CHO CÁC THUẬT TOÁN BÌNH THƯỜNG)
+        # KHUNG 1: BÀN CỜ CHÍNH (CHO CÁC THUẬT TOÁN BÌNH THƯỜNG
         self.board_outer = ctk.CTkFrame(self.center_area, fg_color=PANEL2_COLOR, border_color=BORDER_COLOR, border_width=2, corner_radius=12)
         self.board_outer.place(relx=0.5, rely=0.42, anchor="center")
         self.canvas = tk.Canvas(self.board_outer, width=CELL_SIZE*6, height=CELL_SIZE*6, bg="#0D1117", bd=0, highlightthickness=0)
