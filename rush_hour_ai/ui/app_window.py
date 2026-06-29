@@ -616,12 +616,6 @@ class RushHourAIApp(ctk.CTk):
             result = solver.solve(self.initial_beliefs)
         else:
             result = solver.solve(self.current_board)
-
-        if result is None or not isinstance(result, dict) or not result.get("path"):
-            self.add_log("Không tìm thấy lời giải (hoặc bị kẹt)!", "error")
-            self.set_status("local_max", "Kẹt cứng — Không tìm thấy đường đi/cách xếp")
-            self.btn_ai.configure(state="normal")
-            return
         
         is_stuck = not result or not result.get("path") or (isinstance(result.get("visited"), str) and "không thể giải" in result["visited"])
 
@@ -632,6 +626,12 @@ class RushHourAIApp(ctk.CTk):
             self.set_status("local_max")
             self.btn_ai.configure(state="normal")
             if hasattr(self, 'flash_canvas'): self.flash_canvas("#450A0A")
+            return
+        
+        if result is None or not isinstance(result, dict) or not result.get("path"):
+            self.add_log("Không tìm thấy lời giải (hoặc bị kẹt)!", "error")
+            self.set_status("local_max", "Kẹt cứng — Không tìm thấy đường đi/cách xếp")
+            self.btn_ai.configure(state="normal")
             return
 
         self.add_log("✨ Tìm thấy đường đi!", "success")
