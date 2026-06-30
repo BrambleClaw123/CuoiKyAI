@@ -26,7 +26,7 @@ rush_hour_ai/
 │   │   ├── expectimax_solver.py
 │   │   └── minimax_solver.py
 │   ├── constraint_satisfaction_problem/
-│   │   ├── backtracking_solver.py
+│   │   ├── backtracking_solver.py   
 │   │   ├── forward_checking.py
 │   │   └── min_conflict_solver.py
 │   ├── informed_search_algorithm/
